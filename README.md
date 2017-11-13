@@ -11,6 +11,7 @@ Dependencies:
     xarray (optional but recommended)
 
 Useage example to get started:
+
     >from MDSmonkey import MDSmonkey as mm
     >tree = mm.get_tree('efit01', 134020) #mdsplus tree type returned
     >tree  #hit <Return> to print attribute list, or tab-complete in ipython
