@@ -459,7 +459,7 @@ def getXarray(node,noisy=False, strict=False):
             try:
                 name=get_mds_shortname(get_mds_node_reference(ax))
             except:
-                name=own_name+"_index"
+                name="dim0"
                 #don't assign a coordinate, because it is presumably just an index if it doesn't have a node reference
             coordinates[name]=((name,),ax.data(),{"units":get_mds_units(ax)}) #only give it a coordinate if it might be interesting
             dimension_names.append(name)
@@ -478,7 +478,7 @@ def getXarray(node,noisy=False, strict=False):
             coordinates[name]=((name,),coord,{"units":get_mds_units(ax)}) #refer to the coordinate by its proper name
             dimension_names.append(unique_dim_names[0]) #refer to the dimension that parameterizes this coordinate by whatever name it recieved in the recursive call, assuming that the unique dimension name defined there corresponds to the present dimension of the base array
         else:#zero-dimensional coordinate means index
-            name=own_name+"_index"
+            name="dim%d"%i
             dimension_names.append(name)
     try:
         return xr.DataArray(data,coords=coordinates, dims=dimension_names,attrs={'units':units},name=own_name) 
@@ -611,7 +611,7 @@ def _diagnostic2xarray(node,names={},reverse_order=None,debug=False,noisy=False)
                 for i in looper:
                     ax_obj=get_mds_axis(member,i,strict=False)
                     if not isinstance(ax_obj,mds.treenode.TreeNode):
-                        axes_names.append(name+'_index')
+                        axes_names.append("dim%d"%i)
                     else:
                         axes_names.append(get_mds_shortname(ax_obj))
             coords[name]=axes_names,member.data()
