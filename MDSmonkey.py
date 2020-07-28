@@ -459,7 +459,7 @@ def getXarray(node,noisy=False, strict=False):
             try:
                 name=get_mds_shortname(get_mds_node_reference(ax))
             except:
-                name="dim0"
+                name="dim%d"%i
                 #don't assign a coordinate, because it is presumably just an index if it doesn't have a node reference
             coordinates[name]=((name,),ax.data(),{"units":get_mds_units(ax)}) #only give it a coordinate if it might be interesting
             dimension_names.append(name)
