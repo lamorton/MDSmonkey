@@ -1,9 +1,6 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Author: Lucas A. Morton
-Date: Nov. 13, 2017
-
 MDSmonkey helps the user explore a new (to the user) MDSplus database and read
 the array-type data into xarray DataArray objects. See use example below to get
 started. This assumes that you are set up to use the thick-client Python
@@ -51,6 +48,13 @@ In the default "strict=False" case, this situation will instead lead yield a
 dictionary that contains all the intputs that were used in the failed attempt
 to build the xarray object -- this is useful for debugging or simply accessing
 the data even if it is not formatted well.
+
+There is a shortcut for loading only a subtree: use a 'tree' name like:
+>diags = mm.get_tree("efit01.analysis",134020)
+This can be handy when using 'dead_branches=True' and looking at specific 
+branches -- it is faster than looking at the full tree. Note that the naming 
+convention for the 'tree' string here looks exactly like the attribute-access
+path to the resulting Python object (unless the MDSplus path includes colons.)
 """
 from django.utils.functional import cached_property
 import MDSplus as mds
@@ -71,7 +75,14 @@ def get_tree(treename,shotnum,**kwargs):
     Returns:
         a nested Branch-type object (see traverseTree for more info)
     """
-    return traverseTree(mds.Tree(treename,shotnum),**kwargs)
+    if '.' in treename:
+        treename, start_node = treename.split('.',maxsplit=1)
+        tree = mds.Tree(treename,shotnum)
+        mdsnode = tree.getNode(start_node)
+    else:
+        tree = mds.Tree(treename,shotnum)
+        mdsnode = tree.getNode("\\TOP")
+    return traverseTree(mdsnode,**kwargs)
 
 def get_mds_shortname(node):
     """
@@ -343,8 +354,6 @@ def traverseTree(mdsnode,dead_branches=False,depth=float('Nan'),current_depth=0,
         attributes or a set of Leaf-type attributes, but not a mixed set. 
     """
     tagdict={}
-    if isinstance(mdsnode,mds.tree.Tree):  
-        mdsnode=mdsnode.getNode("\\TOP")
         
     name = get_mds_shortname(mdsnode)  
     me = Branch(mdsnode)#put node information here if you like
