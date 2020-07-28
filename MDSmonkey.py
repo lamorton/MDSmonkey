@@ -19,18 +19,38 @@ Useage example to get started:
     >from MDSmonkey import MDSmonkey as mm
     >tree = mm.get_tree('efit01', 134020) #mdsplus tree type returned
     >tree  #hit <Return> to print attribute list, or tab-complete in ipython
-     name: number of sub-branches 
+     name: subnodes
      analysis: 3
      raw_data: 2
      tags: 103 #special branch to separate out the tags so you aren't overwhelmed
-     help        #no sub-branches
     >tree.analysis
-     flux: (time: 20, z: 50, r: 30)
-     current: (time: 20, z: 50, r: 30)
-     q_on_axis: (time: 20)
+     flux: Data (length=1000)
+     current: Data (length=2500)
+     q_on_axis: Data (length=5000)
     >flux = tree.analysis.flux.data #Now you will receive an xarray data-array
     >flux #return to print, will show array dimensions & names & units.
           #If xarray is not installed, these will instead be branches
+          
+Note that getting the tree may take a few minutes, due to the ~20ms it takes to
+determine whether data resides at a node.  If you want to accelerate the loading
+to ~1 second, use the 'dead_branches=True' option when calling 'get_tree'.
+The tree will now include branches whether or not they have any leaves that 
+contain data -- this can be useful if you want to know about all the possible 
+branches, whether or not they have data for a particular shot. The
+ 'dead_branches=True' option can also be helpful if you are using the 'depth' 
+ option to limit the depth of the tree.
+ 
+The "noisy=True" option will print the tree as it goes: this can be helpful in
+debugging, and is also reassuring if you are waiting a long time for the tree
+to load when using the default "dead_branches=False" option, as it gives a
+sense of progress.
+
+The "strict=True" option will cause an error upon attempts to access a node's 
+data in the case that the node cannot be properly loaded as an xarray object.
+In the default "strict=False" case, this situation will instead lead yield a
+dictionary that contains all the intputs that were used in the failed attempt
+to build the xarray object -- this is useful for debugging or simply accessing
+the data even if it is not formatted well.
 """
 from django.utils.functional import cached_property
 import MDSplus as mds
@@ -238,12 +258,13 @@ class Leaf(object):
     at the location of the 'data' attribute of the leaf, so the xarray object
     can be used normally from then on.
     """
-    def __init__(self,mdsnode,strict=False):
+    def __init__(self,mdsnode,strict=False,length=None):
         """
         mdsnode should be of type mds.treenode.TreeNode
         """
         self.__strict__ = strict
         self.__mdsnode__ = mdsnode
+        self.length = length
     @cached_property 
     def data(self):
         """
@@ -256,14 +277,11 @@ class Leaf(object):
         'leaf.data' refers to leaf.__dict__['data'] which is the xarray object.
         """
         return getXarray(self.__mdsnode__,strict=self.__strict__)
-    #TODO: use DJANGO's memoize decorator to make sure this is only done once
+
     def __repr__(self):
-        names=get_mds_dimension_names(self.__mdsnode__)
-        lengths=get_mds_shape(self.__mdsnode__)
-        descr=[]
-        for i,name in enumerate(names):
-            descr.append(name+': %d'%lengths[i])
-        return "Data ("+', '.join(descr) + ")"
+        if self.length is None:
+            self.length = get_mds_length(self.__mdsnode__)
+        return "Data (length = %d)"%self.length
     
 class Branch(object):
     """
@@ -273,7 +291,6 @@ class Branch(object):
     """
     def __init__(self,mdsnode):
         self.__mdsnode__=mdsnode
-    #TODO: use DJANGO's memoize decorator to make sure this is only done once
     def __repr__(self):
         """
         Controls how the Node instance is displayed.  Lets you see the number
@@ -296,12 +313,6 @@ class Branch(object):
     def __getDescendants__(self):
         return  [key for key in self.__dict__.keys() if not key.startswith('__')]  
 
-#TODO: find a better way to tell if there is actual numerical data in a node besides
-     #trying if the node has the .getShape() . Sometiimes
-     #the 'arrays' are just text string vectors.  Also, calling .getShape on a 
-     #bunch of blank elements in a dummy EFIT tree takes FOREVER, 12 seconds per
-     #such tree, and there can be several such trees, so if you try naively to
-     #get ALL of the trees, it can basically freeze up for a minute.
 #Inspired by mdsplus.org example:
 #http://www.mdsplus.org/index.php?title=Documentation:Tutorial:MdsObjects&open=38101832318169843162415089&page=Documentation%2FThe+MDSplus+tutorial%2FThe+Object+Oriented+interface+of+MDSPlus
 
@@ -320,12 +331,9 @@ def traverseTree(mdsnode,dead_branches=False,depth=float('Nan'),current_depth=0,
         dead_branches: if True, show branches that do not end in array-types
         depth:  limit the depth into the tree by setting a positive integer
         noisy:  see the print-out of the tree as it unfolds, if True
-        debug:  default is 'False', do nothing. If you want to see error messages
-                set 'True'.  If you want to allow certain error types to be
-                raised, pass the type object.
-        strict: if True, set the leafs of the tree to cause an error rather 
-                than returning a non-xarray type object for 'data' if the 
-                xarray type object cannot be built correctly 
+        strict: if True, set the leafs of the tree to cause an error if the 
+                xarray type object cannot be built correctly, rather 
+                than returning a non-xarray type object
         tags: if False, put hide the 'tags' as attributes in a special branch
               called 'tags'.  If True, put the tags right into the returned
               Branch object for easier access, but a messy namespace.
@@ -348,13 +356,18 @@ def traverseTree(mdsnode,dead_branches=False,depth=float('Nan'),current_depth=0,
         leaves=mdsnode.getMembers()
         for leaf in leaves:
             leafname=get_mds_shortname(leaf)
-            leaf_length=get_mds_length(leaf)
-            if dead_branches or leaf_length> 0:
-                if noisy: print ("    "*(current_depth+1) + leafname + ": %d"%leaf_length)
-                setattr(me,leafname,Leaf(leaf,strict))
+            if not dead_branches: #Check the data length, don't put empty Leafs in the tree
+                leaf_length =  get_mds_length(leaf)
+                if leaf_length > 0:
+                    setattr(me,leafname,Leaf(leaf,strict,length=leaf_length)) #Use the pre-computed data length when constructing the Leaf to save time later
+                    tagdict[leafname]=getattr(me,leafname)
+                    if noisy: 
+                        print ("    "*(current_depth+1) + leafname + ": %d"%leaf_length)
+            else: #We don't know if the node has data.  This is fast to load, but it wastes the user's time going down dead-end branches
+                setattr(me,leafname,Leaf(leaf,strict)) #Can't supply 'length' to Leaf b/c we're not asking for it, to save time
                 tagdict[leafname]=getattr(me,leafname)
-            else:
-                if noisy: print("    "*(current_depth+1) + leafname)
+                if noisy: 
+                    print("    "*(current_depth+1) + leafname)
     #Children contain no immediate data, just links to more nodes.  If depth is
     #not beyond limit, go down these 'branches' and add contents to the current
     #Node object
@@ -415,10 +428,9 @@ def getXarray(node,noisy=False, strict=False):
             coords: a dictionary whose keys are coordinate names and whose
                     values are tuples. The first element of the tuple is a 
                     tuple which names the dimensions that apply to the coord
-                    and the second element is the numpy array giving the coord
-            units: a dictionary whose keys are the names of the coordinates and
-                   the name of the data, and whose values are strings that
-                   specify the units.  The strings may be empty.
+                    and the second element is the numpy array giving the coord.
+                    The third element is the units.
+
     """
     #assert type(node)==mds.treenode.TreeNode
     data=node.data()
