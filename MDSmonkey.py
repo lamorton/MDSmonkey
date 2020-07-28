@@ -266,7 +266,7 @@ class Branch(object):
         """
         strings=[]
         try:            
-            for name,value in self.__dict__.iteritems():
+            for name,value in self.__dict__.items():
                 if '__' in name: continue
                 obj=self.__dict__[name]
                 if isinstance(obj,self.__class__):
@@ -349,16 +349,16 @@ def traverseTree(mdsnode,dead_branches=False,depth=float('Nan'),current_depth=0,
             if len(subnode.__getDescendants__())>0:
                 setattr(me,subname,subnode)
                 tagdict[subname]=getattr(me,subname)
-                for k,v in subtags.iteritems(): #merge tags in
+                for k,v in subtags.items(): #merge tags in
                     tagdict[k]=v
                     
     if current_depth==0:#we are done, returning to user
         if tags:    
-            for tag,obj in tagdict.iteritems():
+            for tag,obj in tagdict.items():
                  setattr(me,tag,obj)
         else:
             tagbranch=Branch(mdsnode)
-            for tag,obj in tagdict.iteritems():
+            for tag,obj in tagdict.items():
                  setattr(tagbranch,tag,obj)
             setattr(me,'tags',tagbranch)    
         return me
@@ -595,7 +595,7 @@ def nodedict2xarraydict(nodedict):
     explicitly loading all the data from the tree into xarrays at the time you
     call this function.  This might be slow.
     """
-    return {name:getXarray(node) for name,node in nodedict.iteritems()}
+    return {name:getXarray(node) for name,node in nodedict.items()}
 
 
 def explore_shapes(node):
