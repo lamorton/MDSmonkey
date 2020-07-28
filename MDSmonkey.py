@@ -130,7 +130,7 @@ def get_mds_shape(node):
             #This will fail if node.getShape doesn't exist or if shape is 0
             shape=list(node.getShape())
             assert len(shape)>0
-    except (mds.TdiException,AssertionError):
+    except (mds.mdsExceptions.MDSplusException,AssertionError):
             return []
     shape.reverse() #put in the python order
     return shape 
