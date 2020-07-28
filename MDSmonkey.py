@@ -36,8 +36,8 @@ from django.utils.functional import cached_property
 import MDSplus as mds
 try:
     import xarray as xr
-except Exception, ex:
-    print ex #If xarray is not available, this whole thing still basically works!
+except Exception as ex:
+    print(ex)#If xarray is not available, this whole thing still basically works!
 
 def get_tree(treename,shotnum,**kwargs):
     """
@@ -274,8 +274,8 @@ class Branch(object):
                 else:
                     description=obj.__repr__()
                 strings.append(name+": " +description)
-        except Exception, ex:
-            print type(ex), ex
+        except Exception as ex:
+            print(type(ex), ex)
         return "name:   subnodes \n"+"\n".join(strings)
     def __getDescendants__(self):
         return  [key for key in self.__dict__.keys() if not key.startswith('__')]  
@@ -324,7 +324,7 @@ def traverseTree(mdsnode,dead_branches=False,depth=float('Nan'),current_depth=0,
         
     name = get_mds_shortname(mdsnode)  
     me = Branch(mdsnode)#put node information here if you like
-    if noisy: print "    "*current_depth + name
+    if noisy: print ("    "*current_depth + name)
 
     #Members are data/signals, put them directly the current Node object
     #if they are arrays
@@ -334,11 +334,11 @@ def traverseTree(mdsnode,dead_branches=False,depth=float('Nan'),current_depth=0,
             leafname=get_mds_shortname(leaf)
             leafshape=get_mds_shape(leaf)
             if dead_branches or not len(leafshape) ==0:
-                if noisy: print "    "*(current_depth+1) + leafname +": array%s"%str(leafshape)
+                if noisy: print ("    "*(current_depth+1) + leafname +": array%s"%str(leafshape))
                 setattr(me,leafname,Leaf(leaf,strict))
                 tagdict[leafname]=getattr(me,leafname)
             else:
-                if noisy: print "    "*(current_depth+1) + leafname
+                if noisy: print("    "*(current_depth+1) + leafname)
     #Children contain no immediate data, just links to more nodes.  If depth is
     #not beyond limit, go down these 'branches' and add contents to the current
     #Node object
@@ -412,13 +412,13 @@ def getXarray(node,noisy=False, strict=False):
     coordinates=OrderedDict()        
     units_dict={own_name:get_mds_units(node)}
     dimension_names=[]
-    if noisy:  print "Main body: node %s has shape %s"%(own_name,node_shape)
+    if noisy:  print("Main body: node %s has shape %s"%(own_name,node_shape))
     for i in range(naxes):
         ax=node.dim_of(i)
         ax_dims=len(get_mds_shape(ax))#do we have a coordinate or a simple dimension?
-        if noisy: print "doing axis # %d: shape=%s"%(i,get_mds_shape(ax))
+        if noisy: print( "doing axis # %d: shape=%s"%(i,get_mds_shape(ax)))
         if ax_dims==1:
-            if noisy: print "   inside dims==1"
+            if noisy: print( "   inside dims==1")
             try:
                 name=get_mds_shortname(get_mds_node_reference(ax))
                 coordinates[name]=((name,),ax.data()) #only give it a coordinate if it might be interesting
@@ -427,7 +427,7 @@ def getXarray(node,noisy=False, strict=False):
                 #don't assign a coordinate, because it is presumably just an index if it doesn't have a node reference
             dimension_names.append(name)
         elif ax_dims>1:
-            if noisy: print "  inside dims>1"
+            if noisy: print( "  inside dims>1")
             #time for recursion! Look out!
             coord = getXarray(get_mds_node_reference(ax),noisy=noisy)
             coord_dim_names=set(coord.dims)
@@ -451,7 +451,7 @@ def getXarray(node,noisy=False, strict=False):
     dimension_names.reverse()
     try:
         return xr.DataArray(data,coords=coordinates, dims=dimension_names,attrs={'units':units_dict})  
-    except Exception, ex:#IF something goes wrong, you will at least get the inputs!
+    except Exception as ex:#IF something goes wrong, you will at least get the inputs!
         if not strict:
             #print "WARNING: returning non-xarray object due to error in coordinates."
             dummy= Branch(node)
@@ -531,7 +531,7 @@ def _diagnostic2xarray(node,names={},reverse_order=None,debug=False,noisy=False)
         else:
             data_objs.append(member)
     if len(other_objs) >0 and noisy:
-        print "Warning: the following nodes were not used: %s"%other_objs        
+        print ("Warning: the following nodes were not used: %s"%other_objs)        
     #Assemble the desired data arrays together with their dimension names to 
     #prepare for insertion into an xr.Dataset object
     dvars={}
@@ -548,7 +548,7 @@ def _diagnostic2xarray(node,names={},reverse_order=None,debug=False,noisy=False)
             axes_shape_strings=[str(ax.getShape())[1:-1] for ax in axes]
             shapestring=str(member.getShape())
             if not all([axes_shape in shapestring for axes_shape in axes_shape_strings]) and noisy:
-                print "Warning: Shape mismatch: %s has shape %s, but dimensions %s have shapes %s"%(member,shapestring,axes_names,axes_shape_strings)
+                print("Warning: Shape mismatch: %s has shape %s, but dimensions %s have shapes %s"%(member,shapestring,axes_names,axes_shape_strings))
                 continue
             units[name]=member.units_of()
             dvars[name]=axes_names, member.data() 
@@ -557,7 +557,7 @@ def _diagnostic2xarray(node,names={},reverse_order=None,debug=False,noisy=False)
     if noisy:
         unused_names=set(names).difference(set(dvars.keys()))
         if len(unused_names)>0:
-            print "Warning: these requested names were not found: %s"%unused_names
+            print("Warning: these requested names were not found: %s"%unused_names)
 
     #figure out which of the coordinates we need/have, and add them under the right name
     coords={}
@@ -604,10 +604,10 @@ def explore_shapes(node):
     mds.treenode.Treenode object.
     """
     nodeshape=node.getShape()
-    print "shape: ",nodeshape
+    print( "shape: ",nodeshape)
     for i in range(len(nodeshape)):
         axis=get_mds_axis(node,i,strict=False)
         try:
-            print axis.getNodeName(),axis.getShape()
+            print( axis.getNodeName(),axis.getShape())
         except:
-            print "blank: ",axis.getShape()
+            print("blank: ",axis.getShape())
