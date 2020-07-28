@@ -135,6 +135,23 @@ def get_mds_shape(node):
     shape.reverse() #put in the python order
     return shape 
 
+def get_mds_length(node): 
+    """
+    Get the length of the data record for the mds.treenode.TreeNode.  This is
+    useful for determining whether a node has data stored. It runs about
+    4-5x faster than get_mds_shape, so I've started using it as an alternative
+    for characterizing the 'dead branches'. 
+    
+    Note that ANY MDSplus exception -- including not being able to reach the 
+    tree, bad syntax, etc -- will cause this to evaluate to zero. Make sure
+    that the node actually exists in the tree before using this function.
+    """
+    try:
+        length = node.getLength()
+    except (mds.mdsExceptions.MDSplusException):
+        return 0
+    return length
+
 def get_mds_dimension_names(node):
     """
     Get a list the names of the dimensions of an mds.treenode.TreeNode that  
@@ -332,9 +349,9 @@ def traverseTree(mdsnode,dead_branches=False,depth=float('Nan'),current_depth=0,
         leaves=mdsnode.getMembers()
         for leaf in leaves:
             leafname=get_mds_shortname(leaf)
-            leafshape=get_mds_shape(leaf)
-            if dead_branches or not len(leafshape) ==0:
-                if noisy: print ("    "*(current_depth+1) + leafname +": array%s"%str(leafshape))
+            leaf_length=get_mds_length(leaf)
+            if dead_branches or leaf_length> 0:
+                if noisy: print ("    "*(current_depth+1) + leafname + ": %d"%leaf_length)
                 setattr(me,leafname,Leaf(leaf,strict))
                 tagdict[leafname]=getattr(me,leafname)
             else:
