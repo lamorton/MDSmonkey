@@ -159,7 +159,6 @@ def get_mds_dimension_names(node):
     which only gets the length of the dimensions. 
     """
     ndims=len(get_mds_shape(node))
-    own_name=get_mds_shortname(node)
     dimension_names=[]
     for i in range(ndims):
         dimension=node.dim_of(i)
@@ -168,7 +167,7 @@ def get_mds_dimension_names(node):
             if len(get_mds_shape(dimension))>1:
                 name=name+"_index"
         except:
-            name=own_name+"_index"
+            name="dim%d"%i
         dimension_names.append(name)
     return dimension_names
 
@@ -427,7 +426,7 @@ def getXarray(node,noisy=False, strict=False):
     naxes=len(node_shape)
     own_name=get_mds_shortname(node)
     coordinates=OrderedDict()        
-    units_dict={own_name:get_mds_units(node)}
+    units =get_mds_units(node)
     dimension_names=[]
     if noisy:  print("Main body: node %s has shape %s"%(own_name,node_shape))
     for i in range(naxes):
@@ -438,10 +437,10 @@ def getXarray(node,noisy=False, strict=False):
             if noisy: print( "   inside dims==1")
             try:
                 name=get_mds_shortname(get_mds_node_reference(ax))
-                coordinates[name]=((name,),ax.data()) #only give it a coordinate if it might be interesting
             except:
                 name=own_name+"_index"
                 #don't assign a coordinate, because it is presumably just an index if it doesn't have a node reference
+            coordinates[name]=((name,),ax.data(),{"units":get_mds_units(ax)}) #only give it a coordinate if it might be interesting
             dimension_names.append(name)
         elif ax_dims>1:
             if noisy: print( "  inside dims>1")
@@ -455,26 +454,25 @@ def getXarray(node,noisy=False, strict=False):
             if len(unique_dim_names)>1:
                 raise Exception("Coordinate #%d of node %s has %d>1 new dimensions, which is not allowed"%(i,own_name,len(unique_dim_names)))
             name=get_mds_shortname(get_mds_node_reference(ax))#This thing had better have a name!!!!
-            coordinates[name]=coord #refer to the coordinate by its proper name
+            coordinates[name]=((name,),coord,{"units":get_mds_units(ax)}) #refer to the coordinate by its proper name
             dimension_names.append(unique_dim_names[0]) #refer to the dimension that parameterizes this coordinate by whatever name it recieved in the recursive call, assuming that the unique dimension name defined there corresponds to the present dimension of the base array
         else:#zero-dimensional coordinate means index
             name=own_name+"_index"
             dimension_names.append(name)
-        units_dict[name]=get_mds_units(ax)
     try:
-        return xr.DataArray(data,coords=coordinates, dims=dimension_names,attrs={'units':units_dict}) 
+        return xr.DataArray(data,coords=coordinates, dims=dimension_names,attrs={'units':units},name=own_name) 
     except:
         pass
     dimension_names.reverse()
     try:
-        return xr.DataArray(data,coords=coordinates, dims=dimension_names,attrs={'units':units_dict})  
+        return xr.DataArray(data,coords=coordinates, dims=dimension_names,attrs={'units':units},name=own_name)  
     except Exception as ex:#IF something goes wrong, you will at least get the inputs!
         if not strict:
             #print "WARNING: returning non-xarray object due to error in coordinates."
             dummy= Branch(node)
             dummy.dims=dimension_names
             dummy.coords=coordinates
-            dummy.units=units_dict
+            dummy.units=units
             dummy.node_ref=node
             dummy.data=data
             return dummy
