@@ -112,17 +112,19 @@ def treeify(conn,dead_branches = False):
             if length>0 and int(usage) in usage_integers: 
                 fullpath = fullpath.lower().strip()
                 stringy = stringify(fullpath)
-                push(base,stringy,fullpath,conn,path,int(usage),int(length))
+                push(base,stringy,fullpath,conn,str(path).strip(),int(usage),int(length))
     else:
-        fullpaths,paths =  conn.get((
-        'serializeout(`(_=TreeFindNodeWild("***");List(,'
+        fullpaths,paths,usage =  conn.get((
+        'serializeout(`(_=TreeFindNodeWild("~~~");List(,'
         'GETNCI(_,"FULLPATH"),'
-        'GETNCI(_,"PATH")'
+        'GETNCI(_,"PATH"),'
+        'GETNCI(_,"USAGE")'
         ');))')).deserialize().data()
-        for fullpath,path in zip(fullpaths,paths):
-            fullpath = fullpath.lower().strip()
-            stringy = stringify(fullpath)
-            push(base,stringy,fullpath,conn,path,-1,None)  
+        for fullpath,path,usage in zip(fullpaths,paths,usage):
+            if int(usage) in usage_integers:
+                fullpath = fullpath.lower().strip()
+                stringy = stringify(fullpath)
+                push(base,stringy,fullpath,conn,str(path).strip(),usage,None)  
     return base             
 
 def stringify(path):
@@ -153,7 +155,7 @@ class Leaf(object):
     at the location of the 'data' attribute of the leaf, so the xarray object
     can be used normally from then on.
     """
-    def __init__(self,fullpath,connection,path,strict=False,usage=0,length=None):
+    def __init__(self,fullpath,connection,path,strict=False,usage=-1,length=None):
         """
         mdsnode should be of type mds.treenode.TreeNode
         """
@@ -174,6 +176,8 @@ class Leaf(object):
         function and sets the 'leaf.data' equal to the result. Ever after,
         'leaf.data' refers to leaf.__dict__['data'] which is the xarray object.
         """
+        if self.__usage__ == -1: #Hasn't been checked b/c we did dead_branches == True
+            self.__usage__ = get_stuff(self.__connection__,self.__fullpath__,"usage")
         if self.__usage__ in usage_integers:
             return getXarray(self)
         else:
