@@ -109,7 +109,7 @@ def treeify(conn,dead_branches = False):
         'GETNCI(_,"PATH")'
         ');))')).deserialize().data()]
         for length,fullpath,usage,path in zip(lengths,fullpaths,usages,paths):
-            if length>0 and int(usage) in usage_integers: 
+            if length>0 and int(usage) > 1: #Only push non-structure, length>1 objects
                 fullpath = fullpath.lower().strip()
                 stringy = stringify(fullpath)
                 push(base,stringy,fullpath,conn,str(path).strip(),int(usage),int(length))
@@ -121,10 +121,10 @@ def treeify(conn,dead_branches = False):
         'GETNCI(_,"USAGE")'
         ');))')).deserialize().data()
         for fullpath,path,usage in zip(fullpaths,paths,usage):
-            if int(usage) in usage_integers:
+            if int(usage) >1 : #Non-structure
                 fullpath = fullpath.lower().strip()
                 stringy = stringify(fullpath)
-                push(base,stringy,fullpath,conn,str(path).strip(),usage,None)  
+                push(base,stringy,fullpath,conn,str(path).strip(),int(usage),None)
     return base             
 
 def stringify(path):
@@ -133,13 +133,21 @@ def stringify(path):
     return re.split(regexPattern, path)[2:]
 
 def push(base,stringy,fullpath,connection,path,usage,length):
-    if len(stringy)>1:
+    if len(stringy) > 1:
         if not hasattr(base,stringy[0]):
+            if usage == mds.tree._usage_table['TEXT']:
+                return  #Don't push a branch just b/c there is text under it
+                #Note that by using breadth-first search in TreeFindNodeWild,
+                #any string arrays that are 'attributes' of data arrays will
+                #be found *after* their corresponding data array. So, in the
+                #case of dead_branches = True, the arrays below will hold the
+                #tree open and allow the descriptions to appear, but if False,
+                #then they will not show up and neither will their parents.
             setattr(base,stringy[0],Branch())
         push(getattr(base,stringy[0]),stringy[1:],fullpath,connection,path,usage=usage,length=length)
     else:
         if hasattr(base,stringy[0]):
-            raise Exception("TreeNodeWild returned data out of order, attempting to place a Leaf where a Branch was. Fail! Full path: %s; current substring: %s"%fullpath,stringy)
+            raise Exception("TreeNodeWild returned data out of order, attempting to place a Leaf where a Branch was. Fail! Full path: %s; current substring: %s"%(fullpath,stringy))
         else:
             setattr(base,stringy[0],Leaf(fullpath,connection,path,usage=usage,length=length))
 
@@ -187,7 +195,7 @@ class Leaf(object):
         if self.__length__ is None:
             self.__length__ = int(self.__connection__.get('GETNCI({},"LENGTH")'.format(self.__fullpath__)))
         return "Leaf %s: length = %d"%(self.__path__,self.__length__)
-    
+    #TODO: give branch a fullpath property
 class Branch(object):
     """
     Dummy class whose only real function is to look nice and keep track of 
