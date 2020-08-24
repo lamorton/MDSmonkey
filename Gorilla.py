@@ -101,28 +101,26 @@ def get_stuff(conn,fullpath,NCI):
 def treeify(conn,dead_branches = False):
     base = Branch()
     if not dead_branches:
-        lengths, fullpaths,usages,paths = [a.tolist() for a in conn.get((
+        lengths, fullpaths,usages = [a.tolist() for a in conn.get((
         'serializeout(`(_=TreeFindNodeWild("~~~");List(,' #The ~~~ is supposed to yield breadth-first search, so that I can assume all the branches are encountered before the leaves that hang from them
         'GETNCI(_,"LENGTH"),'
         'GETNCI(_,"FULLPATH"),'
         'GETNCI(_,"USAGE"),'
-        'GETNCI(_,"PATH"),'
         ');))')).deserialize().data()]
-        for length,fullpath,usage,path in zip(lengths,fullpaths,usages,paths):
+        for length,fullpath,usage in zip(lengths,fullpaths,usages):
             if length>0 and int(usage) in usage_integers: 
                 fullpath = fullpath.lower().strip()
                 stringy = stringify(fullpath)
-                push(base,stringy,fullpath,conn,path,int(usage),int(length))
+                push(base,stringy,fullpath,conn,int(usage),int(length))
     else:
-        fullpaths,paths =  conn.get((
+        fullpaths =  conn.get((
         'serializeout(`(_=TreeFindNodeWild("***");List(,'
         'GETNCI(_,"FULLPATH"),'
-        'GETNCI(_,"PATH")'
         ');))')).deserialize().data()
-        for fullpath,path in zip(fullpaths,paths):
+        for fullpath,path in zip(fullpaths):
             fullpath = fullpath.lower().strip()
             stringy = stringify(fullpath)
-            push(base,stringy,fullpath,conn,path,-1,None)  
+            push(base,stringy,fullpath,conn,-1,None)  
     return base             
 
 def stringify(path):
@@ -130,16 +128,16 @@ def stringify(path):
     regexPattern = '|'.join(map(re.escape, delimiters))
     return re.split(regexPattern, path)[2:]
 
-def push(base,stringy,fullpath,connection,path,usage,length):
+def push(base,stringy,fullpath,connection,usage,length):
     if len(stringy)>1:
         if not hasattr(base,stringy[0]):
             setattr(base,stringy[0],Branch())
-        push(getattr(base,stringy[0]),stringy[1:],fullpath,connection,path,usage=usage,length=length)
+        push(getattr(base,stringy[0]),stringy[1:],fullpath,connection,usage=usage,length=length)
     else:
         if hasattr(base,stringy[0]):
             raise Exception("TreeNodeWild returned data out of order, attempting to place a Leaf where a Branch was. Fail! Full path: %s; current substring: %s"%fullpath,stringy)
         else:
-            setattr(base,stringy[0],Leaf(fullpath,connection,path,usage=usage,length=length))
+            setattr(base,stringy[0],Leaf(fullpath,connection,usage=usage,length=length))
 
 #TODO: make the node name more accessible, so I can easily use it elsewhere.
 class Leaf(object):
@@ -153,7 +151,7 @@ class Leaf(object):
     at the location of the 'data' attribute of the leaf, so the xarray object
     can be used normally from then on.
     """
-    def __init__(self,fullpath,connection,path,strict=False,usage=0,length=None):
+    def __init__(self,fullpath,connection,strict=False,usage=-1,length=None):
         """
         mdsnode should be of type mds.treenode.TreeNode
         """
@@ -162,7 +160,7 @@ class Leaf(object):
         self.__connection__ = connection
         self.__usage__ = usage
         self.__length__ = length
-        self.__path__ = path
+        self.__path__ = None
     @cached_property
     def data(self):
         """
@@ -174,15 +172,19 @@ class Leaf(object):
         function and sets the 'leaf.data' equal to the result. Ever after,
         'leaf.data' refers to leaf.__dict__['data'] which is the xarray object.
         """
+        if self.__usage__ == -1: #Hasn't be evaluated, so do that now
+            self.__usage__ = get_stuff(self.__connection__,self.__fullpath__,'usage')
         if self.__usage__ in usage_integers:
             return getXarray(self)
         else:
             return conn.get(self.__fullpath__).data()
 
     def __repr__(self):
+        if self.__path__ == None:
+            self.__path__ = get_stuff(self.__connection__,self.__fullpath__,"path")
         if self.__length__ is None:
             self.__length__ = int(self.__connection__.get('GETNCI({},"LENGTH")'.format(self.__fullpath__)))
-        return "Data (length = %d)"%self.__length__
+        return "%s (length = %d)"%(self.__path__,self.__length__)
     
 class Branch(object):
     """
