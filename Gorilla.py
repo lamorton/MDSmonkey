@@ -106,7 +106,7 @@ def treeify(conn,dead_branches = False):
         'GETNCI(_,"LENGTH"),'
         'GETNCI(_,"FULLPATH"),'
         'GETNCI(_,"USAGE"),'
-        'GETNCI(_,"PATH"),'
+        'GETNCI(_,"PATH")'
         ');))')).deserialize().data()]
         for length,fullpath,usage,path in zip(lengths,fullpaths,usages,paths):
             if length>0 and int(usage) in usage_integers: 
