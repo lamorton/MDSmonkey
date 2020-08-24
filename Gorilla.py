@@ -177,7 +177,7 @@ class Leaf(object):
         if self.__usage__ in usage_integers:
             return getXarray(self)
         else:
-            return conn.get(self.__fullpath__).data()
+            return self.__connection__.get(self.__fullpath__).data()
 
     def __repr__(self):
         if self.__path__ == None:
