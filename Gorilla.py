@@ -186,7 +186,7 @@ class Leaf(object):
     def __repr__(self):
         if self.__length__ is None:
             self.__length__ = int(self.__connection__.get('GETNCI({},"LENGTH")'.format(self.__fullpath__)))
-        return "Data (length = %d)"%self.__length__
+        return "Leaf %s: length = %d"%(self.__path__,self.__length__)
     
 class Branch(object):
     """
@@ -201,18 +201,22 @@ class Branch(object):
         if the attribute is a leaf.
         """
         strings=[]
+        name_max_length = max(map(len,self.__dict__.keys()))
         try:            
             for name,value in self.__dict__.items():
                 if '__' in name: continue
                 obj=self.__dict__[name]
                 if isinstance(obj,self.__class__):
-                    description=str(len(obj.__getDescendants__()))
+                    description="Branch w/ %d subnodes"%len(obj.__getDescendants__())
                 else:
                     description=obj.__repr__()
-                strings.append(name+": " +description)
+                strings.append(name.ljust(name_max_length)+": " +description)
         except Exception as ex:
             print(type(ex), ex)
-        return "name:   subnodes \n"+"\n".join(strings)
+        line1 = "name".ljust(name_max_length)+": subnodes \n" 
+        line2 = "\n".rjust(len(line1),"_")
+        rest = "\n".join(strings)
+        return line1 + line2 + rest
     def __getDescendants__(self):
         return  [key for key in self.__dict__.keys() if not key.startswith('__')]  
 
