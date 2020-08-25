@@ -15,8 +15,6 @@ import re
 
 #TODO: package the connection with the tree & get the reset button to happen
 # automatically in case the connection is lost
-conn = mds.connection.Connection("c2wmds.trialphaenergy.com")
-conn.openTree("phys",121249)
 
 #TODO: appears I can only access one shot at a time this way... pretty clunky for
 # doing multi-shot analysis. I might also get mixed data if I open a new shot with the
@@ -25,19 +23,13 @@ conn.openTree("phys",121249)
 usage_table = mds.tree._usage_table
 usage_integers = [usage_table[utype] for utype in ['NUMERIC','SIGNAL','AXIS','COMPOUND_DATA']]
 
-#TODO: This method doesn't deal with members of a signal very well. For instance, the
-# descriptions I either don't get, or else they can be allowed to cause a dead branch
-# to persist. It looks like descriptions are not a first-class object in the system.
-# Also, the data_err arrays and description strings could be combined into the xarray object
-# This might be too much customization, though: I am not able to test this against all the idiotic
-# variations of MDSplus tree structure out there. Maybe I should just leave it lilke this
+#TODO: Combine the data_err arrays and description strings into the xarray object
+# This might be too much customization, though: I am not able to test this against all 
+# variations of MDSplus tree structure out there. Maybe I should just leave it like this
 # for generality -- I think it should work quite well as-is.
 
 
 #Taken from the class TreeNode definition in mdsplus/python/MDSplus/tree.py 
-# should be on the webpage instead of buried in here for God's sake.
-
-
 def stripper(text):
     NCI_dict ={}
     for line in text.splitlines():
@@ -97,6 +89,11 @@ NCI_text = """    cached              =Nci._nciProp(Flags.CACHED,"True if data i
 
 def get_stuff(conn,fullpath,NCI):
     return conn.get('GETNCI($,"%s")'%NCI,fullpath)
+
+def connectree(shot=121249,tree="phys",server="c2wmds.trialphaenergy.com",dead_branches=False):
+    conn = mds.connection.Connection(server)
+    conn.openTree(tree,shot)
+    return treeify(conn,dead_branches)
 
 def treeify(conn,dead_branches = False):
     base = Branch()
