@@ -247,7 +247,21 @@ def getXarray(Leaf):
     except:
         dims.reverse()
         return xr.DataArray(data,dims=dims,coords=dims_dict,attrs={"units":units})
-        
-        
-        
+import numpy as np
+
+def diagnosticXarray(branch,behavior='concat'):
+    xrdct = {}
+    for thing in branch.__dict__:
+        obj= getattr(branch,thing)
+        if type(obj) == Leaf:
+            xrdct[thing] = obj.data
+    if behavior == 'concat':
+        ndlxr = xr.concat(xrdct.values(),dim='channel')
+        return ndlxr.assign_coords({'channel':np.array(list(xrdct.keys()))})
+    elif behavior == 'merge':
+        return xr.merge(xrdct.values())
+    elif behavior =='combine':
+        return xr.Dataset(xrdct)
+ 
+
        
