@@ -25,8 +25,11 @@ usage_integers = [usage_table[utype] for utype in ['NUMERIC','SIGNAL','AXIS','CO
 # for generality -- I think it should work quite well as-is.
 
 
-#Taken from the class TreeNode definition in mdsplus/python/MDSplus/tree.py 
-def stripper(text):
+ 
+def _parser(text):
+    """
+    Parse this blob of text I yanked from the MDSplus code
+    """
     NCI_dict ={}
     for line in text.splitlines():
         descr = re.findall(r'".*"',line)[0].strip(r"\"")
@@ -35,8 +38,8 @@ def stripper(text):
             NCI_dict[alias.strip()]=descr
     return NCI_dict
             
-
-NCI_text = """    cached              =Nci._nciProp(Flags.CACHED,"True if data is cached")
+#Taken from the class TreeNode definition in mdsplus/python/MDSplus/tree.py
+_TDI_text = """    cached              =Nci._nciProp(Flags.CACHED,"True if data is cached")
     compress_segments   =Flags._nciFlag(Flags.COMPRESS_SEGMENTS,"should segments be compressed")
     compressible        =Nci._nciProp(Flags.COMPRESSIBLE,"is the data stored in this node compressible")
     essential           =Flags._nciFlag(Flags.ESSENTIAL,"essential action defined in this node")
@@ -83,7 +86,9 @@ NCI_text = """    cached              =Nci._nciProp(Flags.CACHED,"True if data i
     time_inserted       =Nci._nciProp(Nci.TIME_INSERTED,"64-bit timestamp when data was stored")
     usage_str           =Nci._nciProp(Nci.USAGE_STR,"formal name of the usage of this node")"""
 
-def get_stuff(connection,fullpath,NCI):
+TDI_text = _parser(_TDI_text)
+
+def get_stuff(connection,fullpath,TDI):
     """
     Get information about a node from the server
 
@@ -103,7 +108,7 @@ def get_stuff(connection,fullpath,NCI):
         whatever you requested
 
     """
-    return connection.get('GETNCI($,"%s")'%NCI,fullpath)
+    return connection.get('GETNCI($,"%s")'%TDI,fullpath)
 
 def get_tree(shot,tree,server,trim_dead_branches=True):
     """
@@ -192,8 +197,8 @@ def get_tree(shot,tree,server,trim_dead_branches=True):
         for length,fullpath,usage,path in zip(lengths,fullpaths,usages,paths):
             if length>0 and int(usage) > 1: #Only push non-structure, length>1 objects
                 fullpath = fullpath.lower().strip()
-                stringy = stringify(fullpath)
-                push(trunk,stringy,shot,tree,fullpath,connection,str(path).strip(),int(usage),int(length))
+                substrings = chop(fullpath)
+                push(trunk,substrings,shot,tree,fullpath,connection,str(path).strip(),int(usage),int(length))
     else:
         fullpaths,paths,usage =  connection.get((
         'serializeout(`(_=TreeFindNodeWild("~~~");List(,'
@@ -204,39 +209,94 @@ def get_tree(shot,tree,server,trim_dead_branches=True):
         for fullpath,path,usage in zip(fullpaths,paths,usage):
             if int(usage) >1 : #Non-structure
                 fullpath = fullpath.lower().strip()
-                stringy = stringify(fullpath)
-                push(trunk,stringy,shot,tree,fullpath,connection,str(path).strip(),int(usage),None)
+                substrings = chop(fullpath)
+                push(trunk,substrings,shot,tree,fullpath,connection,str(path).strip(),int(usage),None)
     return trunk             
 
-def stringify(path,depth=2):
+def chop(path,depth=2):
+    """
+    Chop an MDSplus path up into a list of substrings
+
+    Parameters
+    ----------
+    path : string
+        an MDSplus path
+    depth : integer, optional
+       How many of the initial substrings to throw out. The default is 2.
+
+    Returns
+    -------
+    list of substrings
+    """
     delimiters = ".","::",":"
     regexPattern = '|'.join(map(re.escape, delimiters))
     return re.split(regexPattern, path)[depth:]
 
-def push(base,stringy,shot,tree,fullpath,connection,path,usage,length):
-    if len(stringy) > 1:
-        if not hasattr(base,stringy[0]):
+def push(base,substrings,shot,tree,fullpath,connection,path,usage,length):
+    """
+    Place a Leaf on the tree by recursively putting Branches as attributes of
+    Branches ... until the Leaf is ready to be placed.
+    
+    Works on the assumption that the deeper Leafs are pushed later in order,
+    so that here is no danger of needing to replace a Branch (which cannot 
+    have data) with a Leaf.  It is possible for Leafs to have further Branches
+    or Leafs below them.
+    
+    Parameters
+    ----------
+    base : Branch
+        the branch we are attempting to extend with the Leaf
+    substrings : list of strings
+        the substrings composing the path to the Leaf
+    shot : int
+        shot number (necessary for the Leaf to know this so it can reconnect
+        in the event that the connection is interupted)
+    tree : string
+        MDS tree name (necessary for the Leaf to know this so it can reconnect
+        in the event that the connection is interupted)
+    fullpath : string
+        the full MDS path to the leaf (necessary for the Leaf to be able
+        to request its data from the server)
+    connection : MDS.Connection
+        the connection object to the server
+    path : string
+        shorter path name for display purposes
+    usage : integer
+        describes the type of MDS node in question (ie, branch or leaf)
+    length : integer
+        length in bytes of the data stored at the node. -1 represents not having
+        checked.
+
+    Raises
+    ------
+    Exception
+        If the breadth-first ordering requirement for the nodes is not achieved
+        then an error will be raised instead of clobbering a Branch to put a
+        Leaf there or ignoring data that should be present.
+
+    Returns
+    -------
+    This is very much a side-effectful operation. The outcome is that a Leaf
+    is installed, and branches are installed below it if need-be.
+
+    """
+    if len(substrings) > 1: #We're not at the Leaf depth yet...
+        if not hasattr(base,substrings[0]): #...and the current Branch at this depth doesn't have the next Branch that we want to go down
             if usage == mds.tree._usage_table['TEXT']:
-                return  #Don't push a branch just b/c there is text under it
-                #Note that by using breadth-first search in TreeFindNodeWild,
-                #any string arrays that are 'attributes' of data arrays will
-                #be found *after* their corresponding data array. So, in the
-                #case of dead_branches = True, the arrays below will hold the
-                #tree open and allow the descriptions to appear, but if False,
-                #then they will not show up and neither will their parents.
-            setattr(base,stringy[0],Branch())
-        push(getattr(base,stringy[0]),stringy[1:],shot,tree,fullpath,connection,path,
-             usage=usage,length=length)
-    else:
-        if hasattr(base,stringy[0]):
+                return #Text isn't worthy of opening a whole Branch. However,
+                        # text WILL show up if the Branch it needs already exists due to the presence of a 'real' Leaf with numerical data.
+            setattr(base,substrings[0],Branch())#...put a new empty Branch here so that we can go out onto and ...
+        push(getattr(base,substrings[0]),substrings[1:],shot,tree,fullpath,connection,path,
+             usage=usage,length=length) #...continue out onto this next Branch
+    else: #...we are at the point where we'd like to install the Leaf on the current Branch...
+        if hasattr(base,substrings[0]): #...uh-oh, there's already something here! 
             raise Exception("TreeNodeWild returned data out of order, attempting\
                             to place a Leaf where a Branch was. Fail! Full path: \
-                                %s; current substring: %s"%(fullpath,stringy))
-        else:
-            setattr(base,stringy[0],Leaf(shot,tree,fullpath,connection,path,usage=usage,
+                                %s; current substring: %s"%(fullpath,substrings))
+        else:#...whew, we're all set. Push the Leaf into place.
+            setattr(base,substrings[0],Leaf(shot,tree,fullpath,connection,path,usage=usage,
                                          length=length))
 
-#TODO: make the node name more accessible, so I can easily use it elsewhere.
 class Leaf(object):
     """
     Dummy class that is used as the object type for the terminus of every branch
@@ -324,7 +384,7 @@ class Leaf(object):
         return  [key for key in self.__dict__.keys() if not key.startswith('__')]  
     
     
-    #TODO: give branch a fullpath property
+#TODO: give branch a fullpath property.
 class Branch(object):
     """
     Dummy class whose only real function is to look nice and keep track of 
@@ -396,11 +456,11 @@ def getXarray(leaf):
     dims = list(dims_dict.keys())
     try:
         return xr.DataArray(data,dims=dims,coords=dims_dict,attrs={"units":units},
-                            name = stringify(leaf.__path__,depth=0)[-1])
+                            name = chop(leaf.__path__,depth=0)[-1])
     except:
         dims.reverse()
         return xr.DataArray(data,dims=dims,coords=dims_dict,attrs={"units":units},
-                            name =  stringify(leaf.__path__,depth=0)[-1])
+                            name =  chop(leaf.__path__,depth=0)[-1])
 import numpy as np
 
 def diagnosticXarray(branch,subset=None,behavior='merge'):
