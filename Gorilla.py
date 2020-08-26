@@ -14,10 +14,8 @@ except Exception as ex:
 import re
 
 
-#TODO: appears I can only access one shot at a time this way... pretty clunky for
-# doing multi-shot analysis. I might also get mixed data if I open a new shot with the
-# connection object and then use the same tree object to load new leafs, b/c the
-# Leafs remember the connection but aren't aware of the shot number!
+#TODO: try to find a way to enable multi-shot analysis w/ single tree object
+
 usage_table = mds.tree._usage_table
 usage_integers = [usage_table[utype] for utype in ['NUMERIC','SIGNAL','AXIS','COMPOUND_DATA']]
 
@@ -300,17 +298,25 @@ class Leaf(object):
                 self.__connection__.openTree(self.__tree__,self.__shot__)
                 return getXarray(self)
         else:
-            thing = self.__connection__.get(self.__fullpath__).data()
-            if thing.dtype == np.str_:
-                thing = str(thing)
-            return thing
+            data = self.__connection__.get(self.__fullpath__).data()
+            if data.dtype == np.str_:
+                data = str(data)
+            return data
 
     def __repr__(self):
+        """
+        Pretty-printing for the Leaf type. This operation causes the __Length__
+        data to be pulled from the server, if not already available.  This can
+        fail, needs to be handled.
+        """
         if self.__length__ is None:
             self.__length__ = int(self.__connection__.get('GETNCI({},"LENGTH")'.format(self.__fullpath__)))
         return "Leaf %s: length = %d"%(self.__path__,self.__length__)
     
     def __getDescendants__(self):
+        """
+        Get list of the descendant of this Leaf
+        """
         return  [key for key in self.__dict__.keys() if not key.startswith('__')]  
     
     
@@ -323,7 +329,7 @@ class Branch(object):
     """
     def __repr__(self):
         """
-        Controls how the Node instance is displayed.  Lets you see the number
+        Controls how the Branch instance is displayed.  Lets you see the number
         of subbranches that any branch has, or else a description of the leaf
         if the attribute is a leaf.
         """
@@ -348,9 +354,28 @@ class Branch(object):
         return  [key for key in self.__dict__.keys() if not key.startswith('__')]  
 
 
-def getXarray(Leaf):
-    conn = Leaf.__connection__
-    path = Leaf.__path__
+def getXarray(leaf):
+    """
+    Given a Leaf, pull the Leaf's data from the server into an xarray.DataArray
+    Attempts to get the dimensions and units.  The dimension names are not 
+    available because they do not exist in the MDSplus in general, and attempting 
+    to infer them is not robust. You may assign dimension names to the xarray:
+        
+    >data = tree.diagnostic.thomson.data
+    >data = data.rename({"dim_0":'time',"dim_1":"radius"})
+
+    Parameters
+    ----------
+    leaf : Leaf
+        the Leaf in question
+
+    Returns
+    -------
+    xarray.DataArray
+    
+    """
+    conn = leaf.__connection__
+    path = leaf.__path__
     data = conn.get(path).data()
     try:
         units = conn.get("UNITS_OF({})".format(path)).data()
@@ -362,7 +387,8 @@ def getXarray(Leaf):
         dimname = "dim_{}".format(ii) #TODO: try getting name instead
         coord = conn.get("DIM_OF({},{})".format(path,ii)).data()
         coord_units = conn.get("UNITS_OF(DIM_OF({},{}))".format(path,ii)).data()
-        dims_dict[dimname] = ((dimname,),coord,{"units":coord_units})#TODO: deal with case when the 'dims' are actually coords
+        dims_dict[dimname] = ((dimname,),coord,{"units":coord_units})
+        #TODO: deal with case when the 'dims' are actually coords
     dims = list(dims_dict.keys())
     try:
         return xr.DataArray(data,dims=dims,coords=dims_dict,attrs={"units":units},
@@ -374,6 +400,29 @@ def getXarray(Leaf):
 import numpy as np
 
 def diagnosticXarray(branch,behavior='concat'):
+    """
+    Produce an xarray.Dataset from a diagnostic Branch of a tree.
+    This causes the data to be pulled from the server, if it has not already
+    been done, so it may be slow the first time.
+
+    Parameters
+    ----------
+    branch : Branch
+        must be the parent of at least one Leaf that has data
+    subset : list of strings, optional
+        select which of the Leafs to include in the Dataset. The default is all.
+    behavior : string, optional
+        If 'merge,' each Leaf appears as a variable. The default is 'merge'.
+        If 'concat,' each Leaf is considered one index along a new dimension
+            called 'channel'
+        If 'dump,' just return a dictionary of the DataArrays for debugging.
+
+    Returns
+    -------
+    xarray.Dataset or xarray.DataArray or dct
+        the collected data from this diagnostic
+
+    """
     xrdct = {}
     for thing in branch.__dict__:
         obj= getattr(branch,thing)
