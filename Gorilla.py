@@ -343,7 +343,7 @@ class Branch(object):
             for name,value in self.__dict__.items():
                 if '__' in name: continue
                 obj=self.__dict__[name]
-                if isinstance(obj,self.__class__):
+                if isinstance(obj,Branch):
                     description="Branch w/ %d subnodes"%len(obj.__getDescendants__())
                 else:
                     description=obj.__repr__()
