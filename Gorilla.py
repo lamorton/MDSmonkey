@@ -161,7 +161,7 @@ def get_tree(shot,tree,server,trim_dead_branches=True):
     decay_rates : Branch w/ 6 subnodes
     
     > b0 = tree.physics.b0.data
-    >print(b0)
+    > print(b0)
 
     <xarray.DataArray 'B0' (dim_0: 41)>
     array([0.12604433, 0.15488786, 0.08534247, 0.06027878, 0.06407972,
@@ -177,7 +177,69 @@ def get_tree(shot,tree,server,trim_dead_branches=True):
       * dim_0    (dim_0) float64 -3.16 -3.16 -2.75 -2.75 -2.5 ... 2.5 2.75 3.06 3.06
     Attributes:
         units:    T
+    
+    > ndl = tree.diagnostics.thomson.dts02.ndl
+    > print(ndl) #Many channels that ought to be a single data array...
+    
+        name  : subnodes 
+    _________________
+    ndl_01: Leaf \PHYS::NDL_DTS02_01: length = 518
+    ndl_02: Leaf \PHYS::NDL_DTS02_02: length = 518
+    ndl_03: Leaf \PHYS::NDL_DTS02_03: length = 518
+    ndl_04: Leaf \PHYS::NDL_DTS02_04: length = 518
+    ndl_05: Leaf \PHYS::NDL_DTS02_05: length = 518
+    ndl_06: Leaf \PHYS::NDL_DTS02_06: length = 518
+    ndl_07: Leaf \PHYS::NDL_DTS02_07: length = 518
+    ndl_08: Leaf \PHYS::NDL_DTS02_08: length = 518
+    ndl_09: Leaf \PHYS::NDL_DTS02_09: length = 518
+    ndl_10: Leaf \PHYS::NDL_DTS02_10: length = 518
+    ndl_11: Leaf \PHYS::NDL_DTS02_11: length = 518
+    ndl_12: Leaf \PHYS::NDL_DTS02_12: length = 518
+    ndl_13: Leaf \PHYS::NDL_DTS02_13: length = 518
+    ndl_14: Leaf \PHYS::NDL_DTS02_14: length = 518
         
+    > ndlarray = diagnosticXarray(ndl,behavior='concat')
+    > print(ndlarray)
+        
+        <xarray.DataArray 'NDL_DTS02_01' (channel: 14, dim_0: 34)>
+    array([[          nan, 1.6703393e+18, 1.3293034e+18, 1.5485215e+18,
+            1.7731074e+18, 2.2600095e+18, 4.0675737e+18, 2.2424507e+18,   
+    ...
+            3.1138925e+18, 3.2072900e+18, 2.9299945e+18, 3.1664352e+18,
+            3.0876216e+18, 3.2820408e+18]], dtype=float32)
+    Coordinates:
+      * dim_0    (dim_0) float32 0.0025 0.0035 0.0045 ... 0.028859 0.029859 0.030859
+      * channel  (channel) <U6 'ndl_01' 'ndl_02' 'ndl_03' ... 'ndl_13' 'ndl_14'
+    Attributes:
+        units:    1/m^2
+    
+    
+    > ts = tree.diagnostics.thomson.dts02
+    > print(ts)
+        
+        name        : subnodes 
+    _______________________
+    laser_energy: Leaf \PHYS::LASER_ENERGY_DTS02: length = 514
+    ne          : Leaf \PHYS::NE_DTS02: length = 2731
+    te          : Leaf \PHYS::TE_DTS02: length = 2728
+    te_max      : Leaf \PHYS::TE_MAX_DTS02: length = 507
+    apd_monitors: Branch w/ 2 subnodes
+    ndl         : Branch w/ 14 subnodes
+    
+    > tsarr = diagnosticXarray(ts,subset=['ne','te'],behavior='merge')
+    > print(tsarr) #ne,te belong in the same dataset because they share the same 
+                    # dimensions, but they are not part of the same array because they
+                    # are not the same kind of quantity & have separate units
+                    # use 'merge' for this kind of information gathering
+    
+    <xarray.Dataset>
+    Dimensions:   (dim_0: 34, dim_1: 16)
+    Coordinates:
+      * dim_0     (dim_0) float32 0.0025 0.0035 0.0045 ... 0.029859 0.030859
+      * dim_1     (dim_1) float32 -0.0933 -0.0533 -0.0133 ... 0.4792 0.5592 0.6392
+    Data variables:
+        NE_DTS02  (dim_1, dim_0) float32 nan nan nan 4.2912584e+18 ... nan nan nan
+        TE_DTS02  (dim_1, dim_0) float32 nan nan nan 331.0 317.0 ... nan nan nan nan
     """
     connection = mds.connection.Connection(server)
     connection.openTree(tree,shot)
@@ -448,7 +510,7 @@ def getXarray(leaf):
     ndim = len(data.shape)
     dims_dict = {}
     for ii in range(ndim):
-        dimname = "dim_{}".format(ii) #TODO: try getting name instead
+        dimname = "dim_{}".format(ii) 
         coord = conn.get("DIM_OF({},{})".format(path,ii)).data()
         coord_units = conn.get("UNITS_OF(DIM_OF({},{}))".format(path,ii)).data()
         dims_dict[dimname] = ((dimname,),coord,{"units":coord_units})
