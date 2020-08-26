@@ -186,7 +186,10 @@ class Leaf(object):
         if self.__usage__ in usage_integers:
             return getXarray(self)
         else:
-            return self.__connection__.get(self.__fullpath__).data()
+            thing = self.__connection__.get(self.__fullpath__).data()
+            if thing.dtype == np.str_:
+                thing = str(thing)
+            return thing
 
     def __repr__(self):
         if self.__length__ is None:
