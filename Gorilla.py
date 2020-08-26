@@ -148,14 +148,17 @@ def get_tree(shot,tree,server,trim_dead_branches=True):
     > tree = get_tree(101010,"phys","my.server.com")
     > print(tree)
     
+    Branch: \phys
     name        : subnodes 
     _______________________
     fueling     : Branch w/ 4 subnodes
     physics     : Branch w/ 39 subnodes
+    ...
     vacuum      : Branch w/ 15 subnodes
     
     > print(tree.physics)
     
+    Branch: \phys::top.physics
     name        : subnodes 
     _______________________
     b0          : Leaf \PHYS::B0: length = 734
@@ -180,7 +183,8 @@ def get_tree(shot,tree,server,trim_dead_branches=True):
     > ndl = tree.diagnostics.thomson.dts02.ndl
     > print(ndl) #Many channels that ought to be a single data array...
     
-        name  : subnodes 
+    Branch: \phys::top.diagnostics.thomson.dts02.ndl
+    name  : subnodes 
     _________________
     ndl_01: Leaf \PHYS::NDL_DTS02_01: length = 518
     ndl_02: Leaf \PHYS::NDL_DTS02_02: length = 518
@@ -206,7 +210,7 @@ def get_tree(shot,tree,server,trim_dead_branches=True):
     
     > ts = tree.diagnostics.thomson.dts02
     > print(ts)
-        
+     Branch: \phys::top.diagnostics.thomson.dts02   
         name        : subnodes 
     _______________________
     laser_energy: Leaf \PHYS::LASER_ENERGY_DTS02: length = 514
@@ -248,7 +252,7 @@ def get_tree(shot,tree,server,trim_dead_branches=True):
     connection = mds.connection.Connection(server)
     connection.openTree(tree,shot)
 
-    trunk = Branch()
+    trunk = Branch(r"\{}".format(tree))
     if  trim_dead_branches:
         lengths, fullpaths,usages,paths = [a.tolist() for a in connection.get((
         'serializeout(`(_=TreeFindNodeWild("~~~");List(,' 
@@ -348,10 +352,14 @@ def push(base,substrings,shot,tree,fullpath,connection,path,usage,length):
     """
     if len(substrings) > 1: #We're not at the Leaf depth yet...
         if not hasattr(base,substrings[0]): #...and the current Branch at this depth doesn't have the next Branch that we want to go down
+            current_path = fullpath.split(substrings[1])[0].strip('.:')
             if usage == mds.tree._usage_table['TEXT']:
                 return #Text isn't worthy of opening a whole Branch. However,
-                        # text WILL show up if the Branch it needs already exists due to the presence of a 'real' Leaf with numerical data.
-            setattr(base,substrings[0],Branch())#...put a new empty Branch here so that we can go out onto and ...
+                        # text WILL show up if the Branch it needs already exists 
+                        # due to the presence of a 'real' Leaf with numerical data.
+                        # This allows for descriptor strings to exist without
+                        # ruining the intent of trim_dead_branches==True.
+            setattr(base,substrings[0],Branch(fullpath=current_path))#...put a new empty Branch here so that we can go out onto and ...
         push(getattr(base,substrings[0]),substrings[1:],shot,tree,fullpath,connection,path,
              usage=usage,length=length) #...continue out onto this next Branch
     else: #...we are at the point where we'd like to install the Leaf on the current Branch...
@@ -449,14 +457,16 @@ class Leaf(object):
         """
         return  [key for key in self.__dict__.keys() if not key.startswith('__')]  
     
-    
-#TODO: give branch a fullpath property.
+
 class Branch(object):
     """
     Dummy class whose only real function is to look nice and keep track of 
     references to mds.treenode.Treenode objects. A Branch object only has other
     Branch or Leaf objects as attributes, but no data.
     """
+    def __init__(self,fullpath):
+        self.__fullpath__ = fullpath
+        
     def __repr__(self):
         """
         Controls how the Branch instance is displayed.  Lets you see the number
@@ -476,10 +486,11 @@ class Branch(object):
                 strings.append(name.ljust(name_max_length)+": " +description)
         except Exception as ex:
             print(type(ex), ex)
+        line0 = "Branch: %s\n"%self.__fullpath__
         line1 = "name".ljust(name_max_length)+": subnodes \n" 
         line2 = "\n".rjust(len(line1),"_")
         rest = "\n".join(strings)
-        return line1 + line2 + rest
+        return line0 + line1 + line2 + rest
     def __getDescendants__(self):
         return  [key for key in self.__dict__.keys() if not key.startswith('__')]  
 
