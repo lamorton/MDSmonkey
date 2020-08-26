@@ -195,6 +195,11 @@ class Leaf(object):
         if self.__length__ is None:
             self.__length__ = int(self.__connection__.get('GETNCI({},"LENGTH")'.format(self.__fullpath__)))
         return "Leaf %s: length = %d"%(self.__path__,self.__length__)
+    
+    def __getDescendants__(self):
+        return  [key for key in self.__dict__.keys() if not key.startswith('__')]  
+    
+    
     #TODO: give branch a fullpath property
 class Branch(object):
     """
