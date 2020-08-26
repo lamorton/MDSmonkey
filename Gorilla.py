@@ -441,8 +441,10 @@ def diagnosticXarray(branch,subset=None,behavior='merge'):
         return ndlxr.assign_coords({'channel':np.array(list(xrdct.keys()))})
     elif behavior == 'merge':
         return xr.merge(xrdct.values())
-    elif behavior =='combine':
-        return xr.Dataset(xrdct)
+    elif behavior == 'dump':
+        return xrdct
+    else:
+        print("Invalid selection for 'behavior'.")
  
 
        
