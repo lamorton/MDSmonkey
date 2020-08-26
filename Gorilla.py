@@ -310,7 +310,11 @@ class Leaf(object):
         fail, needs to be handled.
         """
         if self.__length__ is None:
-            self.__length__ = int(self.__connection__.get('GETNCI({},"LENGTH")'.format(self.__fullpath__)))
+            try:
+                self.__length__ = int(self.__connection__.get('GETNCI({},"LENGTH")'.format(self.__fullpath__)))
+            except mds.mdsExceptions.MDSplusException:
+                print("Error: could not connect to the server")
+                return "Leaf %s"%self.__path__
         return "Leaf %s: length = %d"%(self.__path__,self.__length__)
     
     def __getDescendants__(self):
