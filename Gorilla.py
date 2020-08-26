@@ -115,7 +115,10 @@ def get_tree(shot,tree,server,trim_dead_branches=True):
     Connect to a server and construct a Python representation of the MDSplus
     tree for a specific shot. The data is pulled as-needed into 
     xarray.DataArrays and cached. If you want to analyze a different shot you
-    will need to get a new tree object to avoid stale data.
+    will need to get a new tree object to avoid stale data. This is only for
+    reading, not for writing to the tree. Generality/robustness is more important 
+    than advanced features -- the point is to have a tool that works on many
+    devices with no site-specific set-up.  
 
     Parameters
     ----------
@@ -138,7 +141,7 @@ def get_tree(shot,tree,server,trim_dead_branches=True):
         The 'trunk' of the the tree
 
 
-    Usage example:
+    Usage examples:
     --------------
         
     > from MDSmonkey import get_tree
@@ -166,15 +169,11 @@ def get_tree(shot,tree,server,trim_dead_branches=True):
     <xarray.DataArray 'B0' (dim_0: 41)>
     array([0.12604433, 0.15488786, 0.08534247, 0.06027878, 0.06407972,
            0.08324956, 0.07905848, 0.08837441, 0.08049475, 0.09197565,
-           0.10009823, 0.09144516, 0.08829582, 0.09927156, 0.06689333,
-           0.08060841, 0.06631568, 0.0812166 , 0.0747666 , 0.08461637,
-           0.06492528, 0.07736427, 0.07603952, 0.08484247, 0.06642506,
-           0.08150416, 0.0671018 , 0.08052307, 0.08933112, 0.09874175,
-           0.09974558, 0.08469599, 0.08020811, 0.09162582, 0.07829014,
+           ...
            0.0879171 , 0.06486361, 0.08136006, 0.09306931, 0.10664426,
            0.01769459], dtype=float32)
     Coordinates:
-      * dim_0    (dim_0) float64 -3.16 -3.16 -2.75 -2.75 -2.5 ... 2.5 2.75 3.06 3.06
+      * dim_0    (dim_0) float64 -3.16 -3.16 -2.75 -2.75 -2.5 ... 
     Attributes:
         units:    T
     
@@ -185,16 +184,7 @@ def get_tree(shot,tree,server,trim_dead_branches=True):
     _________________
     ndl_01: Leaf \PHYS::NDL_DTS02_01: length = 518
     ndl_02: Leaf \PHYS::NDL_DTS02_02: length = 518
-    ndl_03: Leaf \PHYS::NDL_DTS02_03: length = 518
-    ndl_04: Leaf \PHYS::NDL_DTS02_04: length = 518
-    ndl_05: Leaf \PHYS::NDL_DTS02_05: length = 518
-    ndl_06: Leaf \PHYS::NDL_DTS02_06: length = 518
-    ndl_07: Leaf \PHYS::NDL_DTS02_07: length = 518
-    ndl_08: Leaf \PHYS::NDL_DTS02_08: length = 518
-    ndl_09: Leaf \PHYS::NDL_DTS02_09: length = 518
-    ndl_10: Leaf \PHYS::NDL_DTS02_10: length = 518
-    ndl_11: Leaf \PHYS::NDL_DTS02_11: length = 518
-    ndl_12: Leaf \PHYS::NDL_DTS02_12: length = 518
+    ...
     ndl_13: Leaf \PHYS::NDL_DTS02_13: length = 518
     ndl_14: Leaf \PHYS::NDL_DTS02_14: length = 518
         
@@ -208,8 +198,8 @@ def get_tree(shot,tree,server,trim_dead_branches=True):
             3.1138925e+18, 3.2072900e+18, 2.9299945e+18, 3.1664352e+18,
             3.0876216e+18, 3.2820408e+18]], dtype=float32)
     Coordinates:
-      * dim_0    (dim_0) float32 0.0025 0.0035 0.0045 ... 0.028859 0.029859 0.030859
-      * channel  (channel) <U6 'ndl_01' 'ndl_02' 'ndl_03' ... 'ndl_13' 'ndl_14'
+      * dim_0    (dim_0) float32 0.0025 0.0035 0.0045 ... 
+      * channel  (channel) <U6 'ndl_01' 'ndl_02' 'ndl_03' ... 
     Attributes:
         units:    1/m^2
     
@@ -236,10 +226,24 @@ def get_tree(shot,tree,server,trim_dead_branches=True):
     Dimensions:   (dim_0: 34, dim_1: 16)
     Coordinates:
       * dim_0     (dim_0) float32 0.0025 0.0035 0.0045 ... 0.029859 0.030859
-      * dim_1     (dim_1) float32 -0.0933 -0.0533 -0.0133 ... 0.4792 0.5592 0.6392
+      * dim_1     (dim_1) float32 -0.0933 -0.0533 -0.0133 ... 0.4792 0.5592 
     Data variables:
-        NE_DTS02  (dim_1, dim_0) float32 nan nan nan 4.2912584e+18 ... nan nan nan
-        TE_DTS02  (dim_1, dim_0) float32 nan nan nan 331.0 317.0 ... nan nan nan nan
+        NE_DTS02  (dim_1, dim_0) float32 nan nan nan 4.2912584e+18 ... 
+        TE_DTS02  (dim_1, dim_0) float32 nan nan nan 331.0 317.0 ... 
+        
+    > tsarr = tsarr.rename({"dim_0":"time","dim_1":"radius"})
+    > print(tsarr) #Unfortunately MDSplus does not support dimension names so 
+                    # they cannot be made available automatically -- the user
+                    # needs to bring this information from somewhere else
+    
+    <xarray.Dataset>
+    Dimensions:   (radius: 16, time: 34)
+    Coordinates:
+      * time      (time) float32 0.0025 0.0035 0.0045 ... 0.028859 0.029859 
+      * radius    (radius) float32 -0.0933 -0.0533 -0.0133 ... 0.4792 0.5592 
+    Data variables:
+        NE_DTS02  (radius, time) float32 nan nan nan 4.2912584e+18 ... nan nan
+        TE_DTS02  (radius, time) float32 nan nan nan 331.0 317.0 ... nan nan 
     """
     connection = mds.connection.Connection(server)
     connection.openTree(tree,shot)
