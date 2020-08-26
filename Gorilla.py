@@ -210,10 +210,10 @@ def get_tree(shot,tree,server,trim_dead_branches=True):
                 push(trunk,stringy,shot,tree,fullpath,connection,str(path).strip(),int(usage),None)
     return trunk             
 
-def stringify(path):
+def stringify(path,depth=2):
     delimiters = ".","::",":"
     regexPattern = '|'.join(map(re.escape, delimiters))
-    return re.split(regexPattern, path)[2:]
+    return re.split(regexPattern, path)[depth:]
 
 def push(base,stringy,shot,tree,fullpath,connection,path,usage,length):
     if len(stringy) > 1:
@@ -365,10 +365,12 @@ def getXarray(Leaf):
         dims_dict[dimname] = ((dimname,),coord,{"units":coord_units})#TODO: deal with case when the 'dims' are actually coords
     dims = list(dims_dict.keys())
     try:
-        return xr.DataArray(data,dims=dims,coords=dims_dict,attrs={"units":units})
+        return xr.DataArray(data,dims=dims,coords=dims_dict,attrs={"units":units},
+                            name = stringify(leaf.__path__,depth=0)[-1])
     except:
         dims.reverse()
-        return xr.DataArray(data,dims=dims,coords=dims_dict,attrs={"units":units})
+        return xr.DataArray(data,dims=dims,coords=dims_dict,attrs={"units":units},
+                            name =  stringify(leaf.__path__,depth=0)[-1])
 import numpy as np
 
 def diagnosticXarray(branch,behavior='concat'):
