@@ -13,8 +13,6 @@ except Exception as ex:
     print(ex)
 import re
 
-#TODO: package the connection with the tree & get the reset button to happen
-# automatically in case the connection is lost
 
 #TODO: appears I can only access one shot at a time this way... pretty clunky for
 # doing multi-shot analysis. I might also get mixed data if I open a new shot with the
@@ -106,28 +104,100 @@ def get_stuff(connection,fullpath,NCI):
     TYPE
         whatever you requested
 
-def connectree(shot=121249,tree="phys",server="c2wmds.trialphaenergy.com",dead_branches=False):
-    conn = mds.connection.Connection(server)
-    conn.openTree(tree,shot)
-    return treeify(conn,dead_branches)
+    """
+    return connection.get('GETNCI($,"%s")'%NCI,fullpath)
 
-def treeify(conn,dead_branches = False):
-    base = Branch()
-    if not dead_branches:
-        lengths, fullpaths,usages,paths = [a.tolist() for a in conn.get((
-        'serializeout(`(_=TreeFindNodeWild("~~~");List(,' #The ~~~ is supposed to yield breadth-first search, so that I can assume all the branches are encountered before the leaves that hang from them
+def get_tree(shot,tree,server,trim_dead_branches=True):
+    """
+    Connect to a server and construct a Python representation of the MDSplus
+    tree for a specific shot. The data is pulled as-needed into 
+    xarray.DataArrays and cached. If you want to analyze a different shot you
+    will need to get a new tree object to avoid stale data.
+
+    Parameters
+    ----------
+    shot : integer, optional
+        shot number
+    tree : string, optional
+        the MDSplus tree to connect to
+    server : string, optional
+        URL of the server to connect to
+    trim_dead_branches : bool, optional
+        If True, trim the 'dead' branches so they do not appear in the tree. 
+        The default is True. Dead branches are those which have no data for
+        the shot. This operation can be slow, because evaluating the 'length'
+        of the data (which is how dead branches are detected) is slow. Setting
+        trim_dead_branches = False is faster, but the tree may be cluttered.
+
+    Returns
+    -------
+    Branch
+        The 'trunk' of the the tree
+
+
+    Usage example:
+    --------------
+        
+    > from MDSmonkey import get_tree
+    > tree = get_tree(101010,"phys","my.server.com")
+    > print(tree)
+    
+    name        : subnodes 
+    _______________________
+    fueling     : Branch w/ 4 subnodes
+    physics     : Branch w/ 39 subnodes
+    vacuum      : Branch w/ 15 subnodes
+    
+    > print(tree.physics)
+    
+    name        : subnodes 
+    _______________________
+    b0          : Leaf \PHYS::B0: length = 734
+    b0_avg      : Leaf \PHYS::B0_AVG: length = 458
+    action      : Branch w/ 1 subnodes
+    decay_rates : Branch w/ 6 subnodes
+    
+    > b0 = tree.physics.b0.data
+    >print(b0)
+
+    <xarray.DataArray 'B0' (dim_0: 41)>
+    array([0.12604433, 0.15488786, 0.08534247, 0.06027878, 0.06407972,
+           0.08324956, 0.07905848, 0.08837441, 0.08049475, 0.09197565,
+           0.10009823, 0.09144516, 0.08829582, 0.09927156, 0.06689333,
+           0.08060841, 0.06631568, 0.0812166 , 0.0747666 , 0.08461637,
+           0.06492528, 0.07736427, 0.07603952, 0.08484247, 0.06642506,
+           0.08150416, 0.0671018 , 0.08052307, 0.08933112, 0.09874175,
+           0.09974558, 0.08469599, 0.08020811, 0.09162582, 0.07829014,
+           0.0879171 , 0.06486361, 0.08136006, 0.09306931, 0.10664426,
+           0.01769459], dtype=float32)
+    Coordinates:
+      * dim_0    (dim_0) float64 -3.16 -3.16 -2.75 -2.75 -2.5 ... 2.5 2.75 3.06 3.06
+    Attributes:
+        units:    T
+        
+    """
+    connection = mds.connection.Connection(server)
+    connection.openTree(tree,shot)
+
+    trunk = Branch()
+    if  trim_dead_branches:
+        lengths, fullpaths,usages,paths = [a.tolist() for a in connection.get((
+        'serializeout(`(_=TreeFindNodeWild("~~~");List(,' 
         'GETNCI(_,"LENGTH"),'
         'GETNCI(_,"FULLPATH"),'
         'GETNCI(_,"USAGE"),'
         'GETNCI(_,"PATH")'
         ');))')).deserialize().data()]
+        #The ~~~ is supposed 
+        # to yield breadth-first search, so that I can assume all the branches
+        # are encountered before the leaves that hang from them
         for length,fullpath,usage,path in zip(lengths,fullpaths,usages,paths):
             if length>0 and int(usage) > 1: #Only push non-structure, length>1 objects
                 fullpath = fullpath.lower().strip()
                 stringy = stringify(fullpath)
-                push(base,stringy,fullpath,conn,str(path).strip(),int(usage),int(length))
+                push(trunk,stringy,shot,tree,fullpath,connection,str(path).strip(),int(usage),int(length))
     else:
-        fullpaths,paths,usage =  conn.get((
+        fullpaths,paths,usage =  connection.get((
         'serializeout(`(_=TreeFindNodeWild("~~~");List(,'
         'GETNCI(_,"FULLPATH"),'
         'GETNCI(_,"PATH"),'
@@ -137,15 +207,15 @@ def treeify(conn,dead_branches = False):
             if int(usage) >1 : #Non-structure
                 fullpath = fullpath.lower().strip()
                 stringy = stringify(fullpath)
-                push(base,stringy,fullpath,conn,str(path).strip(),int(usage),None)
-    return base             
+                push(trunk,stringy,shot,tree,fullpath,connection,str(path).strip(),int(usage),None)
+    return trunk             
 
 def stringify(path):
     delimiters = ".","::",":"
     regexPattern = '|'.join(map(re.escape, delimiters))
     return re.split(regexPattern, path)[2:]
 
-def push(base,stringy,fullpath,connection,path,usage,length):
+def push(base,stringy,shot,tree,fullpath,connection,path,usage,length):
     if len(stringy) > 1:
         if not hasattr(base,stringy[0]):
             if usage == mds.tree._usage_table['TEXT']:
@@ -157,12 +227,16 @@ def push(base,stringy,fullpath,connection,path,usage,length):
                 #tree open and allow the descriptions to appear, but if False,
                 #then they will not show up and neither will their parents.
             setattr(base,stringy[0],Branch())
-        push(getattr(base,stringy[0]),stringy[1:],fullpath,connection,path,usage=usage,length=length)
+        push(getattr(base,stringy[0]),stringy[1:],shot,tree,fullpath,connection,path,
+             usage=usage,length=length)
     else:
         if hasattr(base,stringy[0]):
-            raise Exception("TreeNodeWild returned data out of order, attempting to place a Leaf where a Branch was. Fail! Full path: %s; current substring: %s"%(fullpath,stringy))
+            raise Exception("TreeNodeWild returned data out of order, attempting\
+                            to place a Leaf where a Branch was. Fail! Full path: \
+                                %s; current substring: %s"%(fullpath,stringy))
         else:
-            setattr(base,stringy[0],Leaf(fullpath,connection,path,usage=usage,length=length))
+            setattr(base,stringy[0],Leaf(shot,tree,fullpath,connection,path,usage=usage,
+                                         length=length))
 
 #TODO: make the node name more accessible, so I can easily use it elsewhere.
 class Leaf(object):
@@ -176,16 +250,35 @@ class Leaf(object):
     at the location of the 'data' attribute of the leaf, so the xarray object
     can be used normally from then on.
     """
-    def __init__(self,fullpath,connection,path,strict=False,usage=-1,length=None):
+    def __init__(self,shot,tree,fullpath,connection,path,usage=-1,length=None):
         """
-        mdsnode should be of type mds.treenode.TreeNode
+        Create a new Leaf object
+
+        Parameters
+        ----------
+        fullpath : string
+            MDSplus path to the node
+        connection : MDSplus.Connection
+            the connection object for this tree
+        path : string
+            a short path (tag) to this Leaf
+        usage : int, optional
+            Integer specifying the usage. The default is -1. Values < 1 indicate
+            no data is stored, while 8 indicates text.
+        length : int, optional
+            Length of the stored data at the node, in bytes. It takes quite a 
+            while for this number to be counted, so this is optional. The 
+            default is None.  The __repr__ method needs this info tho, so it
+            may request this value from the connection.
+
         """
-        self.__strict__ = strict
         self.__fullpath__ = fullpath
         self.__connection__ = connection
         self.__usage__ = usage
         self.__length__ = length
         self.__path__ = path
+        self.__tree__ = tree
+        self.__shot__ = shot
     @cached_property
     def data(self):
         """
@@ -200,7 +293,12 @@ class Leaf(object):
         if self.__usage__ == -1: #Hasn't been checked b/c we did dead_branches == True
             self.__usage__ = get_stuff(self.__connection__,self.__fullpath__,"usage")
         if self.__usage__ in usage_integers:
-            return getXarray(self)
+            try:
+                return getXarray(self)
+            except mds.mdsExceptions.MDSplusException:
+                self.__connection__.reconnect()
+                self.__connection__.openTree(self.__tree__,self.__shot__)
+                return getXarray(self)
         else:
             thing = self.__connection__.get(self.__fullpath__).data()
             if thing.dtype == np.str_:
