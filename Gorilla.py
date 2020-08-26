@@ -513,8 +513,8 @@ def getXarray(leaf):
         dimname = "dim_{}".format(ii) 
         coord = conn.get("DIM_OF({},{})".format(path,ii)).data()
         coord_units = conn.get("UNITS_OF(DIM_OF({},{}))".format(path,ii)).data()
+        assert len(coord.shape) == 1, "Dimensions must be 1-dimensional"
         dims_dict[dimname] = ((dimname,),coord,{"units":coord_units})
-        #TODO: deal with case when the 'dims' are actually coords
     dims = list(dims_dict.keys())
     try:
         return xr.DataArray(data,dims=dims,coords=dims_dict,attrs={"units":units},
