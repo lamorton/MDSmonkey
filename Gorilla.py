@@ -87,8 +87,24 @@ NCI_text = """    cached              =Nci._nciProp(Flags.CACHED,"True if data i
     time_inserted       =Nci._nciProp(Nci.TIME_INSERTED,"64-bit timestamp when data was stored")
     usage_str           =Nci._nciProp(Nci.USAGE_STR,"formal name of the usage of this node")"""
 
-def get_stuff(conn,fullpath,NCI):
-    return conn.get('GETNCI($,"%s")'%NCI,fullpath)
+def get_stuff(connection,fullpath,NCI):
+    """
+    Get information about a node from the server
+
+    Parameters
+    ----------
+    connection : MDSplus.Connection
+        live connection to the server
+    fullpath : string
+        path into the tree
+    NCI : string
+        the magic code to get what you want.  See the available codes in 
+        MDSmonkey.NCI_text
+
+    Returns
+    -------
+    TYPE
+        whatever you requested
 
 def connectree(shot=121249,tree="phys",server="c2wmds.trialphaenergy.com",dead_branches=False):
     conn = mds.connection.Connection(server)
