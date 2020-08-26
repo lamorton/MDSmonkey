@@ -428,10 +428,14 @@ def diagnosticXarray(branch,subset=None,behavior='merge'):
 
     """
     xrdct = {}
-    for thing in branch.__dict__:
-        obj= getattr(branch,thing)
-        if type(obj) == Leaf:
-            xrdct[thing] = obj.data
+    if subset is None:
+        subset = branch.__getDescendants__()
+    for descendant in subset:
+        descendant = str(descendant)
+        obj= getattr(branch,descendant)
+        if (type(obj) == Leaf) and (obj.__usage__ in usage_integers):
+            data = obj.data
+            xrdct[descendant] = data
     if behavior == 'concat':
         ndlxr = xr.concat(xrdct.values(),dim='channel')
         return ndlxr.assign_coords({'channel':np.array(list(xrdct.keys()))})
