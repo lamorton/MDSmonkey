@@ -403,7 +403,7 @@ def getXarray(leaf):
                             name =  stringify(leaf.__path__,depth=0)[-1])
 import numpy as np
 
-def diagnosticXarray(branch,behavior='concat'):
+def diagnosticXarray(branch,subset=None,behavior='merge'):
     """
     Produce an xarray.Dataset from a diagnostic Branch of a tree.
     This causes the data to be pulled from the server, if it has not already
