@@ -1,51 +1,27 @@
 # MDSmonkey
 MDSmonkey helps you explore an unfamiliar [MDSplus](https://github.com/MDSplus/mdsplus) database (`tree`) and begin 
 analyzing the data in Python, in less than one minute. By using [xarray](http://xarray.pydata.org/en/stable/), 
-publication-quality plots can be produced in 7 lines of code or less.
+publication-quality plots can be produced in 6 lines of code: 
 
-## Key features:
+```
+    > from MDSmonkey import get_tree
+    > tree = get_tree(101010,"phys","my.server.com")
+    > te = tree.diagnostics.thomson.dts02.te
+    > te = te.rename({"dim_0":"time","dim_1":"radius"})
+    > te.attrs['long_name'] = r'$T_e$'
+    > te.plot()
+```
 
-- **Exploration:** see all the branches in the tree that contain data items.
-- **Tidiness:** by default, 'prunes' away branches that do not contain data, for an uncluttered view.
-- **Speed:** data is loaded only when needed, and cached for reuse. 
-- **Conciseness:** absolute minimum of boilerplate required to get nice plots.
-- **Generality:** works for any MDSplus installation. No customization required.
-- **Unification:** find, plot, and do math on the data with one tool.
+![Sample 2D image](demo_images/2Dplot_basic.png)
 
 
-## Key non-features:
+## Tutorial:
 
-- **Database editing:** does not write data or construct a tree. Meant for analysis. 
-- **Liveness:** does not have live updates as data comes in from a shot. Meant for post-shot analysis.
-- **Customization:** does not supply machine-specific defaults. Meant for robust generality.
-- **Artificial intelligence:** does not infer anything (like dimension names). Meant to reflect exactly what exists in the database.
-- **Graphical interface:** this tool use the iPython interpreter as the user interface.
-
-## Possible eventual features:
-
-- **Multishot interface:** presently, each shot needs a separate tree instance, because the 
-             shape of the tree and the shape of the data records may change 
-             shot-to-shot. It may be possible to circumvent these restrictions
-             and enable a single tree to contain multi-shot data.
-             
-
-## Tools with overlapping scope:
-- jScope/dwScope: GUIs with live updating plots of data (can't do math or explore the tree).
-- traverser: GUI for looking at / editing the tree (can't plot the data, nor prune 'dead' branches).
-- [Fusion Data Platform](https://github.com/Fusion-Data-Platform/fdp): very similar to MDSmonkey. Provides a standardized interface
-                        to multiple machines, using JSON templates that must be
-                        written for each one.
-- [OMFIT](https://omfit.io/): Has MDSplus support for some machines, with Scope, Profile, and EFIT GUIs
-
-## Dependencies:
-
-- django
-- MDSplus
-- xarray
-
-## Usage example:
+This walk-through illustrates a typical workflow when using MDSmonkey to approach an unfamiliar database, find what data is available, and plot it.
 
 ### Basic access & exploration
+The first step is to initialize a tree. 
+
 ```
     > from MDSmonkey import get_tree
     > tree = get_tree(101010,"phys","my.server.com")
@@ -76,6 +52,12 @@ name (ex: `\phys::top.physics`) when printed.  `Branch`es display their type,
 path, and a short description of the of the subnodes below them. 
 `Leaf`s display their type, path, and length (in bytes) of their data, along
 with a short description of the subnodes below them (if any).
+
+Note that by default, the `trim_dead_branches` feature of `get_tree` is used.  This
+removes any `Branch` that does not have a `Leaf` with a non-zero amount of data as 
+a descendant. Checking the length slows the initialization considerably (~20 seconds
+vs ~1 second, depending on the size of the database).  If you are in a
+hurry, you can supply the optional `trim_dead_branches=False` argument to `get_tree`.
 
 
 ```
@@ -273,3 +255,49 @@ It is also possible to save & reload data to an HDF5 file:
     > tsarr.to_netcdf("my_filename_for_ts.h5")
     > tsarr_reloaded = xr.load_dataset("my_filename_for_ts.h5")
 ```
+
+# About the project
+
+I (@lamorton) wrote this because I've worked with >4 different devices (MST, NSTX/NSTX-U, DIII-D, C-2W). 
+Finding out what data is available and where has generally been a chore each time. The goal of MDSmonkey
+was to have a tool that I could reuse for the N+1th device. It's intended for students or postdocs who need
+to hit the ground running.
+
+## Key features:
+
+- **Exploration:** see all the branches in the tree that contain data items.
+- **Tidiness:** by default, 'prunes' away branches that do not contain data, for an uncluttered view.
+- **Speed:** data is loaded only when needed, and cached for reuse. 
+- **Conciseness:** absolute minimum of boilerplate required to get nice plots.
+- **Generality:** works for any MDSplus installation. No customization required.
+- **Unification:** find, plot, and do math on the data with one tool.
+
+
+## Key non-features:
+
+- **Database editing:** does not write data or construct a tree. Meant for analysis. 
+- **Liveness:** does not have live updates as data comes in from a shot. Meant for post-shot analysis.
+- **Customization:** does not supply machine-specific defaults. Meant for robust generality.
+- **Artificial intelligence:** does not infer anything (like dimension names). Meant to reflect exactly what exists in the database.
+- **Graphical interface:** this tool use the iPython interpreter as the user interface.
+
+## Possible eventual features:
+
+- **Multishot interface:** presently, each shot needs a separate tree instance, because the 
+             shape of the tree and the shape of the data records may change 
+             shot-to-shot. It may be possible to circumvent these restrictions
+             and enable a single tree to contain multi-shot data.
+             
+
+## Tools with overlapping scope:
+- jScope/dwScope: GUIs with live updating plots of data (can't do math or explore the tree).
+- traverser: GUI for looking at / editing the tree (can't plot the data, nor prune 'dead' branches).
+- [Fusion Data Platform](https://github.com/Fusion-Data-Platform/fdp): very similar to MDSmonkey. Provides a standardized interface
+                        to multiple machines, using JSON templates that must be written for each one.
+- [OMFIT](https://omfit.io/): Has MDSplus support for some machines, with Scope, Profile, and EFIT GUIs
+
+## Dependencies:
+
+- django
+- MDSplus
+- xarray
