@@ -7,10 +7,7 @@ Created on Fri Jul 31 13:38:40 2020
 """
 from django.utils.functional import cached_property
 import MDSplus as mds
-try:
-    import xarray as xr
-except Exception as ex:
-    print(ex)
+import xarray as xr
 import re
 
 
