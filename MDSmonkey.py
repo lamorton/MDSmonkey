@@ -577,7 +577,7 @@ def diagnosticXarray(branch,subset=None,behavior='merge'):
         ndlxr = xr.concat(xrdct.values(),dim='channel')
         return ndlxr.assign_coords({'channel':np.array(list(xrdct.keys()))})
     elif behavior == 'merge':
-        return xr.merge(xrdct.values())
+        return xr.Dataset(xrdct)
     elif behavior == 'dump':
         return xrdct
     else:
