@@ -371,7 +371,41 @@ def push(base,substrings,shot,tree,fullpath,connection,path,usage,length):
             setattr(base,substrings[0],Leaf(shot,tree,fullpath,connection,path,usage=usage,
                                          length=length))
 
-class Leaf(object):
+class Branch(object):
+    """
+    Dummy class whose only real function is to look nice and keep track of 
+    references to mds.treenode.Treenode objects. A Branch object only has other
+    Branch or Leaf objects as attributes, but no data.
+    """
+    def __init__(self,fullpath):
+        self.__fullpath__ = fullpath
+    def __information__(self):
+        return "%s %s : number of subnodes: %d\n"%(self.__class__.__name__,self.__fullpath__,self.__getNumberDescendants__())
+    def __info__(self):
+        return "%s : number of subnodes: %d"%(self.__class__.__name__,self.__getNumberDescendants__())
+    def __repr__(self):
+        """
+        Controls how the Branch instance is displayed.  Lets you see the number
+        of subbranches that any Branch has, along with a little blurb about
+        this particular Branch (__info__).
+        """
+        line1 = self.__information__()
+        if self.__getNumberDescendants__() >0:
+            descendants = self.__getDescendants__()
+            name_max_length = max(map(len,descendants.keys())) #Find longest name so can pad the strings
+            strings = [name.ljust(name_max_length)+": " + descendant.__info__() for name,descendant in descendants.items()] 
+            line2 = "\n".rjust(len(line1),"_")
+            rest = line2 + "\n".join(strings)
+        else:
+            rest = ''
+
+        return line1 + rest
+    def __getDescendants__(self):
+        return  {key:value for key,value in self.__dict__.items() if isinstance(value,Branch)} 
+    def __getNumberDescendants__(self):
+        return len(self.__getDescendants__().keys())
+
+class Leaf(Branch):
     """
     Dummy class that is used as the object type for the terminus of every branch
     of the python version of the MDSplus tree.  Instead of actually forcing the
@@ -437,62 +471,21 @@ class Leaf(object):
                 data = str(data)
             return data
 
-    def __repr__(self):
+    def __information__(self):
         """
-        Pretty-printing for the Leaf type. This operation causes the __Length__
-        data to be pulled from the server, if not already available.  This can
-        fail, needs to be handled.
+        Causes __length__ data to be pulled from the server, if not already 
+        available.  This can  fail, needs to be handled.
         """
         if self.__length__ is None:
             try:
                 self.__length__ = int(self.__connection__.get('GETNCI({},"LENGTH")'.format(self.__fullpath__)))
             except mds.mdsExceptions.MDSplusException:
                 print("Error: could not connect to the server")
-                return "Leaf %s"%self.__path__
-        return "Leaf %s: length = %d"%(self.__path__,self.__length__)
+                return "Leaf %s\n"%self.__path__
+        return "Leaf %s : length of data: %d bytes\n"%(self.__path__,self.__length__)
     
-    def __getDescendants__(self):
-        """
-        Get list of the descendant of this Leaf
-        """
-        return  [key for key in self.__dict__.keys() if not key.startswith('__')]  
     
 
-class Branch(object):
-    """
-    Dummy class whose only real function is to look nice and keep track of 
-    references to mds.treenode.Treenode objects. A Branch object only has other
-    Branch or Leaf objects as attributes, but no data.
-    """
-    def __init__(self,fullpath):
-        self.__fullpath__ = fullpath
-        
-    def __repr__(self):
-        """
-        Controls how the Branch instance is displayed.  Lets you see the number
-        of subbranches that any branch has, or else a description of the leaf
-        if the attribute is a leaf.
-        """
-        strings=[]
-        name_max_length = max(map(len,self.__dict__.keys()))
-        try:            
-            for name,value in self.__dict__.items():
-                if '__' in name: continue
-                obj=self.__dict__[name]
-                if isinstance(obj,Branch):
-                    description="Branch w/ %d subnodes"%len(obj.__getDescendants__())
-                else:
-                    description=obj.__repr__()
-                strings.append(name.ljust(name_max_length)+": " +description)
-        except Exception as ex:
-            print(type(ex), ex)
-        line0 = "Branch: %s\n"%self.__fullpath__
-        line1 = "name".ljust(name_max_length)+": subnodes \n" 
-        line2 = "\n".rjust(len(line1),"_")
-        rest = "\n".join(strings)
-        return line0 + line1 + line2 + rest
-    def __getDescendants__(self):
-        return  [key for key in self.__dict__.keys() if not key.startswith('__')]  
 
 
 def getXarray(leaf):
