@@ -146,54 +146,65 @@ def get_tree(shot,tree,server,trim_dead_branches=True):
         
     > from MDSmonkey import get_tree
     > tree = get_tree(101010,"phys","my.server.com")
-    > print(tree)
+    > tree
     
-    Branch: \phys
-    name        : subnodes 
-    _______________________
-    fueling     : Branch w/ 4 subnodes
-    physics     : Branch w/ 39 subnodes
+    Branch \phys : number of subnodes: 14
+    _____________________________________
+    fueling     : Branch : number of subnodes: 4
+    physics     : Branch : number of subnodes: 39
+    vacuum      : Branch : number of subnodes: 15
+    viz_only    : Branch : number of subnodes: 17
+    electrodes  : Branch : number of subnodes: 6
     ...
-    vacuum      : Branch w/ 15 subnodes
     
-    > print(tree.physics)
+    > tree.physics
     
-    Branch: \phys::top.physics
-    name        : subnodes 
-    _______________________
-    b0          : Leaf \PHYS::B0: length = 734
-    b0_avg      : Leaf \PHYS::B0_AVG: length = 458
-    action      : Branch w/ 1 subnodes
-    decay_rates : Branch w/ 6 subnodes
+    Branch \phys::top.physics : number of subnodes: 39
+    __________________________________________________
+    b0          : Leaf : number of subnodes: 4
+    b0_avg      : Leaf : number of subnodes: 4
+    be_max      : Leaf : number of subnodes: 4
+    be_z0       : Leaf : number of subnodes: 4
+    e_th        : Leaf : number of subnodes: 4
+    ...
     
-    > b0 = tree.physics.b0.data
-    > print(b0)
+    > be_max = tree.physics.b0
+    > be_max #has several associated Leafs below it with ancillary information
 
-    <xarray.DataArray 'B0' (dim_0: 41)>
-    array([0.12604433, 0.15488786, 0.08534247, 0.06027878, 0.06407972,
-           0.08324956, 0.07905848, 0.08837441, 0.08049475, 0.09197565,
-           ...
-           0.0879171 , 0.06486361, 0.08136006, 0.09306931, 0.10664426,
-           0.01769459], dtype=float32)
+    Leaf \PHYS::B0 : length of data: 734 bytes
+    __________________________________________
+    data_err   : Leaf : number of subnodes: 0
+    data_err_h : Leaf : number of subnodes: 0
+    data_err_l : Leaf : number of subnodes: 0
+    description: Leaf : number of subnodes: 0
+    
+    >be_max.data #A `Leaf` has the 'data' attribute, a `Branch` does not
+    
+    <xarray.DataArray 'BE_MAX' (dim_0: 94999)>
+    array([0.08225632, 0.08221801, 0.08222205, ..., 0.0775292 , 0.07756143,
+           0.07744625], dtype=float32)
     Coordinates:
-      * dim_0    (dim_0) float64 -3.16 -3.16 -2.75 -2.75 -2.5 ... 
+      * dim_0    (dim_0) float64 -0.0004996 -0.0004992 -0.0004988 ... 0.0375 0.0375
     Attributes:
         units:    T
-    
+        
+    >be_max.data.plot() #xarray.DataArray has custom plotting functionality
+
+
     > ndl = tree.diagnostics.thomson.dts02.ndl
-    > print(ndl) #Many channels that ought to be a single data array...
+    > ndl #Many channels that ought to be a single data array...
     
-    Branch: \phys::top.diagnostics.thomson.dts02.ndl
-    name  : subnodes 
-    _________________
-    ndl_01: Leaf \PHYS::NDL_DTS02_01: length = 518
-    ndl_02: Leaf \PHYS::NDL_DTS02_02: length = 518
+    Branch \phys::top.diagnostics.thomson.dts02.ndl : number of subnodes: 14
+    ________________________________________________________________________
+    ndl_01: Leaf : number of subnodes: 4
+    ndl_02: Leaf : number of subnodes: 4
+    ndl_03: Leaf : number of subnodes: 4
+    ndl_04: Leaf : number of subnodes: 4
+    ndl_05: Leaf : number of subnodes: 4
     ...
-    ndl_13: Leaf \PHYS::NDL_DTS02_13: length = 518
-    ndl_14: Leaf \PHYS::NDL_DTS02_14: length = 518
         
     > ndlarray = diagnosticXarray(ndl,behavior='concat')
-    > print(ndlarray)
+    > print(ndlarray) #Combined into single 2D array by channel
         
         <xarray.DataArray 'NDL_DTS02_01' (channel: 14, dim_0: 34)>
     array([[          nan, 1.6703393e+18, 1.3293034e+18, 1.5485215e+18,
@@ -209,22 +220,22 @@ def get_tree(shot,tree,server,trim_dead_branches=True):
     
     
     > ts = tree.diagnostics.thomson.dts02
-    > print(ts)
-     Branch: \phys::top.diagnostics.thomson.dts02   
-        name        : subnodes 
-    _______________________
-    laser_energy: Leaf \PHYS::LASER_ENERGY_DTS02: length = 514
-    ne          : Leaf \PHYS::NE_DTS02: length = 2731
-    te          : Leaf \PHYS::TE_DTS02: length = 2728
-    te_max      : Leaf \PHYS::TE_MAX_DTS02: length = 507
-    apd_monitors: Branch w/ 2 subnodes
-    ndl         : Branch w/ 14 subnodes
+    > ts # ne, te belong together as part of a dataset with shared dimensions
+         # but they are not part of the same array because they
+         # are not the same kind of quantity & have separate units, so we
+         # use 'merge' for this kind of information gathering
+    
+    Branch \phys::top.diagnostics.thomson.dts02 : number of subnodes: 6
+    ___________________________________________________________________
+    laser_energy: Leaf : number of subnodes: 4
+    ne          : Leaf : number of subnodes: 4
+    te          : Leaf : number of subnodes: 4
+    te_max      : Leaf : number of subnodes: 4
+    apd_monitors: Branch : number of subnodes: 2
+    ndl         : Branch : number of subnodes: 14
     
     > tsarr = diagnosticXarray(ts,subset=['ne','te'],behavior='merge')
-    > print(tsarr) #ne,te belong in the same dataset because they share the same 
-                    # dimensions, but they are not part of the same array because they
-                    # are not the same kind of quantity & have separate units
-                    # use 'merge' for this kind of information gathering
+    > tsarr
     
     <xarray.Dataset>
     Dimensions:   (dim_0: 34, dim_1: 16)
@@ -232,8 +243,8 @@ def get_tree(shot,tree,server,trim_dead_branches=True):
       * dim_0     (dim_0) float32 0.0025 0.0035 0.0045 ... 0.029859 0.030859
       * dim_1     (dim_1) float32 -0.0933 -0.0533 -0.0133 ... 0.4792 0.5592 
     Data variables:
-        NE_DTS02  (dim_1, dim_0) float32 nan nan nan 4.2912584e+18 ... 
-        TE_DTS02  (dim_1, dim_0) float32 nan nan nan 331.0 317.0 ... 
+        ne  (dim_1, dim_0) float32 nan nan nan 4.2912584e+18 ... 
+        te  (dim_1, dim_0) float32 nan nan nan 331.0 317.0 ... 
         
     > tsarr = tsarr.rename({"dim_0":"time","dim_1":"radius"})
     > print(tsarr) #Unfortunately MDSplus does not support dimension names so 
@@ -246,8 +257,8 @@ def get_tree(shot,tree,server,trim_dead_branches=True):
       * time      (time) float32 0.0025 0.0035 0.0045 ... 0.028859 0.029859 
       * radius    (radius) float32 -0.0933 -0.0533 -0.0133 ... 0.4792 0.5592 
     Data variables:
-        NE_DTS02  (radius, time) float32 nan nan nan 4.2912584e+18 ... nan nan
-        TE_DTS02  (radius, time) float32 nan nan nan 331.0 317.0 ... nan nan 
+        ne  (radius, time) float32 nan nan nan 4.2912584e+18 ... nan nan
+        te  (radius, time) float32 nan nan nan 331.0 317.0 ... nan nan 
     """
     connection = mds.connection.Connection(server)
     connection.openTree(tree,shot)
