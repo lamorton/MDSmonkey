@@ -558,6 +558,7 @@ def diagnosticXarray(branch,subset=None,behavior='merge'):
         If 'concat,' each Leaf is considered one index along a new dimension
             called 'channel'
         If 'dump,' just return a dictionary of the DataArrays for debugging.
+        If 'list', returns a list of the DataArrays.
 
     Returns
     -------
@@ -581,6 +582,8 @@ def diagnosticXarray(branch,subset=None,behavior='merge'):
         return xr.Dataset(xrdct)
     elif behavior == 'dump':
         return xrdct
+    elif behavior == 'list':
+        return list(xrdct.values())
     else:
         print("Invalid selection for 'behavior'.")
  
