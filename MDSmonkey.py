@@ -11,7 +11,10 @@ import xarray as xr
 import re
 
 
-#TODO: try to find a way to enable multi-shot analysis w/ single tree object
+#TODO: try to find a way to enable multi-shot analysis w/ single tree object, and 
+#      add shot number display to the Branch __information__ string
+
+#TODO: Consider rebasing on mdsconnector -- it can work in 'local' mode instead of ssh
 
 usage_table = mds.tree._usage_table
 usage_integers = [usage_table[utype] for utype in ['NUMERIC','SIGNAL','AXIS','COMPOUND_DATA']]
@@ -22,7 +25,8 @@ usage_integers = [usage_table[utype] for utype in ['NUMERIC','SIGNAL','AXIS','CO
 # for generality -- I think it should work quite well as-is.
 
 
- 
+#TODO:  
+
 def _parser(text):
     """
     Parse this blob of text I yanked from the MDSplus code
