@@ -278,9 +278,9 @@ def get_tree(shot,tree,server,trim_dead_branches=True):
         # are encountered before the leaves that hang from them
         for length,fullpath,usage,path in zip(lengths,fullpaths,usages,paths):
             if length>0 and int(usage) > 1: #Only push non-structure, length>1 objects
-                fullpath = fullpath.lower().strip()
+                fullpath = fullpath.lower().strip().decode("utf-8")
                 substrings = chop(fullpath)
-                push(trunk,substrings,shot,tree,fullpath,connection,str(path).strip(),int(usage),int(length))
+                push(trunk,substrings,shot,tree,fullpath,connection,path.decode("utf-8").strip(),int(usage),int(length))
     else:
         fullpaths,paths,usage =  connection.get((
         'serializeout(`(_=TreeFindNodeWild("~~~");List(,'
@@ -290,9 +290,9 @@ def get_tree(shot,tree,server,trim_dead_branches=True):
         ');))')).deserialize().data()
         for fullpath,path,usage in zip(fullpaths,paths,usage):
             if int(usage) >1 : #Non-structure
-                fullpath = fullpath.lower().strip()
+                fullpath = fullpath.lower().strip().decode("utf-8")
                 substrings = chop(fullpath)
-                push(trunk,substrings,shot,tree,fullpath,connection,str(path).strip(),int(usage),None)
+                push(trunk,substrings,shot,tree,fullpath,connection,path.decode("utf-8").strip(),int(usage),None)
     return trunk             
 
 def chop(path,depth=2):
