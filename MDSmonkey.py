@@ -13,6 +13,9 @@ import re
 
 #TODO: try to find a way to enable multi-shot analysis w/ single tree object, and 
 #      add shot number display to the Branch __information__ string
+#      Not trivial b/c right now the data is assumed to be a single item, would 
+#      need to turn into a dictionary with shot as key. Also, tree structure isn't
+#      guaranteed to be consistent across shots, so that's tricky.
 
 #TODO: Consider rebasing on mdsconnector -- it can work in 'local' mode instead of ssh
 
@@ -24,8 +27,6 @@ usage_integers = [usage_table[utype] for utype in ['NUMERIC','SIGNAL','AXIS','CO
 # variations of MDSplus tree structure out there. Maybe I should just leave it like this
 # for generality -- I think it should work quite well as-is.
 
-
-#TODO:  
 
 def _parser(text):
     """
@@ -111,6 +112,141 @@ def get_stuff(connection,fullpath,TDI):
     """
     return connection.get('GETNCI($,"%s")'%TDI,fullpath)
 
+def get_data(shot,path, treename = None ,server = None, conn = None):
+    """
+    Directly get the data from an MDSplus path if you already know it.
+    Can accept either a connection object or a treename & server -- uses
+    the connection if it is provided & functioning, otherwise attempts to
+    connect to the server itself. Note that you cannot access subtags this way
+    (eg, associated errors) because that work is done by the tree constructor.
+
+    Parameters
+    ----------
+    shot : integer
+        shot number
+    path : string
+        path into the tree
+    treename : string, optional
+        name of the MDSplus tree. The default is None.
+    server : TYPE, optional
+        URL of the server to connect to. The default is None.
+    conn : MDSplus.Connection, optional
+        MDSplus connection object. The default is None.
+
+    Returns
+    -------
+    lf : Leaf object containing all the data (incl. errors, description, etc)
+        
+
+    """
+    if conn is None:
+        conn = mds.connection.Connection(server)
+    
+    conn.openTree(treename,shot)
+    lf = Leaf(shot,treename,path,conn,path,usage=-1,length=None)
+    dt = lf.data #Just need to trigger the actual grabbing of the data here
+    return dt
+
+def get_many(shots,tags,treename = None ,server = None, conn = None, shot_behavior='concat',tag_behavior="merge"):
+    xrdct = {}
+
+    for tag in tags:
+        xrdct[tag.strip("\\")] = get_many_shots(shots,tag,treename=treename,server=server,conn=conn,behavior=shot_behavior)
+    if tag_behavior == 'concat':
+        ndlxr = xr.concat(xrdct.values(),dim='channel')
+        return ndlxr.assign_coords({'channel':np.array(list(xrdct.keys()))})
+    elif tag_behavior == 'merge':
+        return xr.Dataset(xrdct)
+    elif tag_behavior == 'dump':
+        return xrdct
+    elif tag_behavior == 'list':
+        return list(xrdct.values())
+    else:
+        print("Invalid selection for 'tag_behavior'.")
+    
+def get_many_shots(shots,tag,treename = None ,server = None, conn = None, behavior='concat'):
+    """
+    Produce an xarray.Dataset from a diagnostic Branch of a tree.
+    This causes the data to be pulled from the server, if it has not already
+    been done, so it may be slow the first time.
+
+    Parameters
+    ----------
+    branch : Branch
+        must be the parent of at least one Leaf that has data
+    subset : list of strings, optional
+        select which of the Leafs to include in the Dataset. The default is all.
+    behavior : string, optional
+        If 'merge,' each Leaf appears as a variable. The default is 'concat'.
+        If 'concat,' each Leaf is considered one index along a new dimension
+            called 'channel'
+        If 'dump,' just return a dictionary of the DataArrays for debugging.
+        If 'list', returns a list of the DataArrays.
+
+    Returns
+    -------
+    xarray.Dataset or xarray.DataArray or dct
+        the collected data from this diagnostic
+
+    """
+    xrdct = {}
+    
+    for shot in shots:
+        xrdct[shot] = get_data(shot,tag,treename=treename,server=server,conn=conn)
+    if behavior == 'concat':
+        ndlxr = xr.concat(xrdct.values(),dim='shot')
+        return ndlxr.assign_coords({'shot':np.array(list(xrdct.keys()))})
+    elif behavior == 'merge':
+        newdct = {"s%d"%shot:val for shot,val in xrdct.items()} #Must prefix by non-numeral
+        return xr.Dataset(newdct)
+    elif behavior == 'dump':
+        return xrdct
+    elif behavior == 'list':
+        return list(xrdct.values())
+    else:
+        print("Invalid selection for 'behavior'.")
+
+def get_many_signals(shot,tags,treename = None ,server = None, conn = None,behavior='merge'):
+    """
+    Produce an xarray.Dataset from a diagnostic Branch of a tree.
+    This causes the data to be pulled from the server, if it has not already
+    been done, so it may be slow the first time.
+
+    Parameters
+    ----------
+    branch : Branch
+        must be the parent of at least one Leaf that has data
+    subset : list of strings, optional
+        select which of the Leafs to include in the Dataset. The default is all.
+    behavior : string, optional
+        If 'merge,' each Leaf appears as a variable. The default is 'merge'.
+        If 'concat,' each Leaf is considered one index along a new dimension
+            called 'channel'
+        If 'dump,' just return a dictionary of the DataArrays for debugging.
+        If 'list', returns a list of the DataArrays.
+
+    Returns
+    -------
+    xarray.Dataset or xarray.DataArray or dct
+        the collected data from this diagnostic
+
+    """
+    xrdct = {}
+    
+    for descendant in tags:
+        xrdct[descendant.strip("\\")] = get_data(shot,descendant,treename=treename,server=server,conn=conn)
+    if behavior == 'concat':
+        ndlxr = xr.concat(xrdct.values(),dim='channel')
+        return ndlxr.assign_coords({'channel':np.array(list(xrdct.keys()))})
+    elif behavior == 'merge':
+        return xr.Dataset(xrdct)
+    elif behavior == 'dump':
+        return xrdct
+    elif behavior == 'list':
+        return list(xrdct.values())
+    else:
+        print("Invalid selection for 'behavior'.")
+ 
 def get_tree(shot,tree,server,trim_dead_branches=True):
     """
     Connect to a server and construct a Python representation of the MDSplus
@@ -538,11 +674,11 @@ def getXarray(leaf):
     dims = list(dims_dict.keys())
     try:
         return xr.DataArray(data,dims=dims,coords=dims_dict,attrs={"units":units},
-                            name = chop(leaf.__path__,depth=0)[-1])
+                            name = chop(leaf.__path__,depth=0)[-1].strip(r"\\"))
     except:
         dims.reverse()
         return xr.DataArray(data,dims=dims,coords=dims_dict,attrs={"units":units},
-                            name =  chop(leaf.__path__,depth=0)[-1])
+                            name =  chop(leaf.__path__,depth=0)[-1].strip(r"\\"))
 import numpy as np
 
 def diagnosticXarray(branch,subset=None,behavior='merge'):
@@ -578,7 +714,7 @@ def diagnosticXarray(branch,subset=None,behavior='merge'):
         obj= getattr(branch,descendant)
         if (type(obj) == Leaf) and (obj.__usage__ in usage_integers):
             data = obj.data
-            xrdct[descendant] = data
+            xrdct[descendant.strip("\\")] = data
     if behavior == 'concat':
         ndlxr = xr.concat(xrdct.values(),dim='channel')
         return ndlxr.assign_coords({'channel':np.array(list(xrdct.keys()))})
